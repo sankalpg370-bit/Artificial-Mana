@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artificial Mana - Complete Project Guide</title>
+<style>
+:root{--bg:#fff;--fg:#1c2030;--muted:#5d6477;--card:#f3f5fa;--line:#d5dae6;--accent:#3b5bdb;--ok:#2b8a57;--no:#c2410c}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1117;--fg:#e8eaf0;--muted:#8b91a3;--card:#171a23;--line:#2a3042;--accent:#7b93ff;--ok:#4cc38a;--no:#fb923c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.6}
+main{max-width:860px;margin:0 auto;padding:24px 18px 70px}
+h1{font-size:28px;margin:0 0 6px}
+h2{font-size:21px;margin:40px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+p{margin:8px 0}
+.muted{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+.warn{border-left:4px solid var(--accent)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:520px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:14px}
+code{background:var(--card);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:14px;word-break:break-word}
+ol,ul{padding-left:22px}
+li{margin:5px 0}
+.yes{color:var(--ok);font-weight:700}
+.no{color:var(--no)}
+nav{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 18px;margin:16px 0}
+nav a{color:var(--accent);text-decoration:none}
+nav ol{columns:2;column-gap:28px;margin:6px 0}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font-family:system-ui,sans-serif}
+svg .box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+svg .main{fill:var(--card);stroke:var(--accent);stroke-width:2.5}
+svg .line{stroke:var(--accent);stroke-width:2;fill:none}
+svg .lbl{font-size:13px;fill:var(--muted)}
+svg .t{font-size:16px;font-weight:600}
+svg .s{font-size:13px;fill:var(--muted)}
+@media(max-width:600px){nav ol{columns:1}}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Artificial Mana</h1>
+<p class="muted">Complete project guide. Site: artificialmana.com. Version 12.</p>
+
+<nav>
+<strong>Contents</strong>
+<ol>
+<li><a href="#what">What this project is</a></li>
+<li><a href="#diagram">Diagram</a></li>
+<li><a href="#parts">What each part does</a></li>
+<li><a href="#features">Features</a></li>
+<li><a href="#roles">Who can do what</a></li>
+<li><a href="#data">Database tables</a></li>
+<li><a href="#teacher">How a teacher makes a course</a></li>
+<li><a href="#computer">Set up on your computer</a></li>
+<li><a href="#db">Set up the database</a></li>
+<li><a href="#online">Put the site online</a></li>
+<li><a href="#safety">Safety rules</a></li>
+<li><a href="#opensource">Open-source parts</a></li>
+<li><a href="#fix">Problems and fixes</a></li>
+<li><a href="#later">Not built yet</a></li>
+<li><a href="#files">Where the files are</a></li>
+</ol>
+</nav>
+
+<h2 id="what">1. What this project is</h2>
+<p>Artificial Mana is a learning website. It teaches artificial intelligence with videos.</p>
+<p>Students watch lessons, take quizzes, write notes, draw on boards, and ask questions. Teachers make the courses in a form. Nobody must edit code to add a course.</p>
+
+<h2 id="diagram">2. Diagram: how the parts connect</h2>
+<div class="card scroll">
+<svg viewBox="0 0 760 450" role="img" aria-label="Diagram. Students and teachers use the website. The website connects to YouTube, the Supabase database, and Supabase file storage.">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+    </marker>
+  </defs>
+  <rect class="box" x="40" y="14" width="210" height="62" rx="12"/>
+  <text class="t" x="145" y="42" text-anchor="middle">Student</text>
+  <text class="s" x="145" y="62" text-anchor="middle">phone or computer</text>
+  <rect class="box" x="510" y="14" width="210" height="62" rx="12"/>
+  <text class="t" x="615" y="42" text-anchor="middle">Teacher</text>
+  <text class="s" x="615" y="62" text-anchor="middle">uses the Admin page</text>
+
+  <line class="line" x1="150" y1="78" x2="300" y2="148" marker-end="url(#a)" marker-start="url(#a)"/>
+  <text class="lbl" x="60" y="122">lessons, quiz, notes</text>
+  <line class="line" x1="610" y1="78" x2="470" y2="148" marker-end="url(#a)" marker-start="url(#a)"/>
+  <text class="lbl" x="560" y="122">courses, teacher board</text>
+
+  <rect class="main" x="240" y="150" width="280" height="84" rx="12"/>
+  <text class="t" x="380" y="182" text-anchor="middle">Website</text>
+  <text class="s" x="380" y="204" text-anchor="middle">Next.js, hosted on Vercel</text>
+  <text class="s" x="380" y="222" text-anchor="middle">artificialmana.com</text>
+
+  <path class="line" d="M300 236 L140 336" marker-end="url(#a)"/>
+  <text class="lbl" x="40" y="292">plays video</text>
+  <line class="line" x1="380" y1="236" x2="380" y2="336" marker-end="url(#a)" marker-start="url(#a)"/>
+  <text class="lbl" x="392" y="290">saves and reads data</text>
+  <path class="line" d="M460 236 L620 336" marker-end="url(#a)"/>
+  <text class="lbl" x="560" y="292">PDF files</text>
+
+  <rect class="box" x="30" y="338" width="220" height="70" rx="12"/>
+  <text class="t" x="140" y="368" text-anchor="middle">YouTube</text>
+  <text class="s" x="140" y="390" text-anchor="middle">your videos</text>
+  <rect class="box" x="270" y="338" width="220" height="70" rx="12"/>
+  <text class="t" x="380" y="364" text-anchor="middle">Supabase database</text>
+  <text class="s" x="380" y="384" text-anchor="middle">login, data, live updates</text>
+  <text class="s" x="380" y="400" text-anchor="middle">(roles keep data private)</text>
+  <rect class="box" x="510" y="338" width="220" height="70" rx="12"/>
+  <text class="t" x="620" y="368" text-anchor="middle">Supabase storage</text>
+  <text class="s" x="620" y="390" text-anchor="middle">lesson PDF files</text>
+
+  <text class="lbl" x="380" y="436" text-anchor="middle">Live updates: when a teacher draws, the database tells the students' browsers.</text>
+</svg>
+</div>
+
+<h2 id="parts">3. What each part does</h2>
+<div class="scroll">
+<table>
+<tr><th>Part</th><th>Job</th></tr>
+<tr><td>Website (Next.js, React)</td><td>Shows the pages. Runs the player, notes, quizzes, boards, and comments.</td></tr>
+<tr><td>Vercel</td><td>Keeps the website online. It connects the domain artificialmana.com.</td></tr>
+<tr><td>YouTube</td><td>Stores and plays your videos. This is free.</td></tr>
+<tr><td>Supabase database</td><td>Stores accounts, courses, progress, notes, and comments. It also sends live updates.</td></tr>
+<tr><td>Supabase storage</td><td>Stores the lesson PDF files that teachers upload.</td></tr>
+<tr><td>Excalidraw</td><td>Gives the diagram board.</td></tr>
+<tr><td>Tiptap</td><td>Gives the note editor.</td></tr>
+<tr><td>pdf-lib</td><td>Makes the certificate PDF in the browser.</td></tr>
+</table>
+</div>
+
+<h2 id="features">4. Features</h2>
+<div class="scroll">
+<table>
+<tr><th>#</th><th>Feature</th><th>What a user can do</th></tr>
+<tr><td>1</td><td>Courses and lessons</td><td>Pick a course. Watch videos. "Play All" starts the next lesson by itself.</td></tr>
+<tr><td>2</td><td>Accounts and progress</td><td>Sign up and log in. A green check shows a finished lesson.</td></tr>
+<tr><td>3</td><td>Notes with timestamps</td><td>Write a note at any point in the video. Click the time to go back to that point.</td></tr>
+<tr><td>4</td><td>PDF materials</td><td>Read the lesson PDF. Download all notes as one PDF.</td></tr>
+<tr><td>5</td><td>Bookmarks and resume</td><td>Save a course. Open it again at the last lesson. See "My courses".</td></tr>
+<tr><td>6</td><td>Quizzes</td><td>Answer questions after a lesson. The site keeps the best score.</td></tr>
+<tr><td>7</td><td>Search and categories</td><td>Find a course or a lesson by a word. Filter by category.</td></tr>
+<tr><td>8</td><td>Chalkboard</td><td>Draw on a blackboard, whiteboard, or grid. Tools: pen, marker, highlighter, shapes, text, eraser, undo.</td></tr>
+<tr><td>9</td><td>Diagram board</td><td>Draw diagrams with shapes, arrows, and images.</td></tr>
+<tr><td>10</td><td>Teacher board</td><td>A teacher draws. Students watch. It updates in 1 to 2 seconds.</td></tr>
+<tr><td>11</td><td>Admin page</td><td>A teacher makes and edits courses, lessons, PDFs, and quizzes.</td></tr>
+<tr><td>12</td><td>Certificates</td><td>Download a PDF after all lessons are done and every quiz has 60% or more.</td></tr>
+<tr><td>13</td><td>Rich notes</td><td>Use bold, italic, headings, lists, quotes, and code in notes.</td></tr>
+<tr><td>14</td><td>Questions and comments</td><td>Ask a question under a lesson. Reply. Teachers show a badge.</td></tr>
+<tr><td>15</td><td>About and Privacy pages</td><td>Tell students who you are and how you keep their data.</td></tr>
+</table>
+</div>
+
+<h2 id="roles">5. Who can do what</h2>
+<div class="scroll">
+<table>
+<tr><th>Action</th><th>Visitor</th><th>Student</th><th>Teacher or admin</th></tr>
+<tr><td>Watch lessons, read comments, watch the teacher board</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+<tr><td>Save progress, notes, and boards in the browser</td><td class="yes">Yes</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+<tr><td>Keep progress, notes, scores, and boards on every device</td><td class="no">No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+<tr><td>Write comments and replies</td><td class="no">No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+<tr><td>Delete any comment</td><td class="no">No</td><td class="no">No (own only)</td><td class="yes">Yes</td></tr>
+<tr><td>Draw on the teacher board</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+<tr><td>Use the Admin page</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+</table>
+</div>
+<p class="muted">In this version, "teacher" and "admin" have the same rights. A user cannot change their own role. Only you can, in Supabase.</p>
+
+<h2 id="data">6. Database tables</h2>
+<div class="scroll">
+<table>
+<tr><th>Table</th><th>What it keeps</th><th>Who can read it</th></tr>
+<tr><td><code>profiles</code></td><td>The role of each user</td><td>The user</td></tr>
+<tr><td><code>courses</code>, <code>lessons</code></td><td>Course and lesson data, quizzes, PDF links</td><td>Everyone (published courses only)</td></tr>
+<tr><td><code>progress</code></td><td>Finished lessons</td><td>The user</td></tr>
+<tr><td><code>course_state</code></td><td>Bookmarks and last lesson</td><td>The user</td></tr>
+<tr><td><code>notes</code></td><td>Notes with timestamps</td><td>The user</td></tr>
+<tr><td><code>quiz_results</code></td><td>Best quiz scores</td><td>The user</td></tr>
+<tr><td><code>boards</code></td><td>Private chalkboard and diagram board</td><td>The user</td></tr>
+<tr><td><code>lesson_boards</code></td><td>Teacher board for each lesson</td><td>Everyone (only teachers write)</td></tr>
+<tr><td><code>comments</code></td><td>Questions and replies</td><td>Everyone</td></tr>
+</table>
+</div>
+
+<h2 id="teacher">7. How a teacher makes a course</h2>
+<ol>
+<li>Log in with a teacher account.</li>
+<li>Click <strong>Admin</strong> in the top bar.</li>
+<li>Write a title, a description, and a category. Click <strong>Make course</strong>.</li>
+<li>Upload your video to YouTube.</li>
+<li>In the course, paste the YouTube link. Write the lesson title.</li>
+<li>Add a PDF file or quiz questions if you want.</li>
+<li>Click <strong>Add lesson</strong>. Repeat for each lesson.</li>
+<li>Click <strong>Publish</strong>. The public site shows the course in about 1 minute.</li>
+</ol>
+<p>Use the arrows to move a lesson. Use <strong>Edit</strong> to change a lesson. A course needs one lesson or more to show on the site.</p>
+
+<h2 id="computer">8. Set up on your computer</h2>
+<ol>
+<li>Install Node.js, LTS version 20.9 or newer.</li>
+<li>Unzip the project. Open a terminal in the folder.</li>
+<li>Run <code>npm install</code>.</li>
+<li>Copy <code>.env.local.example</code> to <code>.env.local</code>.</li>
+<li>Add your Supabase URL and anon key. Find them in Supabase, Project Settings, API.</li>
+<li>Run <code>npm run dev</code>.</li>
+<li>Open <code>http://localhost:3000</code>.</li>
+</ol>
+
+<h2 id="db">9. Set up the database</h2>
+<ol>
+<li>Make a free project at supabase.com.</li>
+<li>Open the SQL Editor. Click New query.</li>
+<li>Paste the whole file <code>supabase-all.sql</code>.</li>
+<li>Click Run. Do this one time only.</li>
+<li>Sign up on your site.</li>
+<li>Open <code>database-steps/supabase-step8.sql</code>. Find the last line.</li>
+<li>Remove the <code>--</code> at the start. Write your email. Run that one line.</li>
+<li>Log in again. The <strong>Admin</strong> button shows.</li>
+</ol>
+
+<h2 id="online">10. Put the site online</h2>
+<ol>
+<li>Run <code>npm run build</code>. Make sure there are no errors.</li>
+<li>Upload the project to GitHub. Do not upload <code>.env.local</code>.</li>
+<li>Make a Vercel account. Import the GitHub project.</li>
+<li>Add the two Supabase keys in Vercel, under Environment Variables.</li>
+<li>Click Deploy.</li>
+<li>In Vercel, open Settings, Domains. Add artificialmana.com.</li>
+<li>Copy the DNS records from Vercel to your domain company.</li>
+<li>In Supabase, open Authentication, URL Configuration. Set the Site URL to <code>https://artificialmana.com</code>.</li>
+<li>Turn on email confirmation again if you turned it off for tests.</li>
+<li>Test the live site with a new account on your phone.</li>
+</ol>
+<div class="card warn">
+<p><strong>Important.</strong> Vercel's free plan is for non-commercial use. Move to a paid plan before you sell courses or show ads.</p>
+</div>
+
+<h2 id="safety">11. Safety rules</h2>
+<ul>
+<li>Never share <code>.env.local</code>. Never upload it to GitHub.</li>
+<li>The anon key is public by design. The database rules (RLS) protect the data.</li>
+<li>A user cannot change their own role. A user cannot fake the Teacher badge.</li>
+<li>Notes keep only safe formats. Scripts and links are removed.</li>
+<li>Comments show as plain text. A user can post 5 comments in one minute.</li>
+<li>Keep a copy of every video and every PDF on your own computer.</li>
+<li>Write your own text on the About and Privacy pages. Ask a legal expert to check the Privacy page.</li>
+<li>Run <code>npm audit</code> every month. Update the packages when a fix exists.</li>
+<li>Run <code>npm test</code> before you put a change online. All tests must pass.</li>
+</ul>
+
+<h2 id="opensource">12. Open-source parts</h2>
+<div class="scroll">
+<table>
+<tr><th>Part</th><th>Use</th><th>License</th></tr>
+<tr><td>Next.js, React</td><td>The website</td><td>MIT</td></tr>
+<tr><td>Supabase JS</td><td>Accounts and data</td><td>MIT</td></tr>
+<tr><td>Excalidraw</td><td>Diagram board</td><td>MIT</td></tr>
+<tr><td>Tiptap</td><td>Note editor</td><td>MIT</td></tr>
+<tr><td>pdf-lib</td><td>Certificate PDF</td><td>MIT</td></tr>
+<tr><td>Vitest, Testing Library, jsdom</td><td>Tests (not part of the live site)</td><td>MIT</td></tr>
+</table>
+</div>
+<p>Rule: add only MIT, Apache 2.0, or BSD code. Check the license before you add a library. Add each library to <code>CREDITS.md</code>.</p>
+<p class="muted">The <code>npm audit</code> tool shows 14 warnings inside Excalidraw's own parts. The risk is low. Check for a new Excalidraw version each month.</p>
+
+<h2 id="fix">13. Problems and fixes</h2>
+<div class="scroll">
+<table>
+<tr><th>Problem</th><th>Fix</th></tr>
+<tr><td>"Supabase keys are not set"</td><td>Check <code>.env.local</code>. Stop the site. Run <code>npm run dev</code> again.</td></tr>
+<tr><td><code>npm install</code> or build fails</td><td>Run <code>node -v</code>. You need version 20.9 or newer.</td></tr>
+<tr><td>SQL shows "already exists"</td><td>You ran the file twice. This is safe to ignore.</td></tr>
+<tr><td>No email after sign-up</td><td>Check the spam folder. For tests, turn off email confirmation in Supabase.</td></tr>
+<tr><td>The Admin button does not show</td><td>Run the role line. Log out. Log in again.</td></tr>
+<tr><td>A new course does not show</td><td>Wait 1 minute. Make sure it is published and has one lesson or more.</td></tr>
+<tr><td>The teacher board does not update</td><td>Make sure <code>supabase-all.sql</code> ran with no errors. Open the board again.</td></tr>
+<tr><td>No certificate button</td><td>Finish all lessons. Pass every quiz with 60% or more.</td></tr>
+<tr><td>Certificate shows a name error</td><td>Use English letters in the name.</td></tr>
+<tr><td>"Download notes as PDF" shows nothing</td><td>Allow pop-ups for the site. Try again.</td></tr>
+</table>
+</div>
+
+<h2 id="later">14. Not built yet</h2>
+<ul>
+<li>Streak counter and progress bar</li>
+<li>Searchable transcripts for each video</li>
+<li>AI tutor, and quiz questions made by AI</li>
+<li>A page to check that a certificate is real</li>
+<li>A report button for comments</li>
+<li>Live class with voice or video</li>
+<li>Certificates with names in other languages</li>
+<li>Paid courses, newsletter, and analytics</li>
+<li>Password reset and "Log in with Google"</li>
+<li>Light theme</li>
+<li>Tests in a real browser (end-to-end tests). The current tests check each part, not a full click-through.</li>
+</ul>
+
+<h2 id="files">15. Where the files are</h2>
+<div class="scroll">
+<table>
+<tr><th>Task</th><th>Where</th></tr>
+<tr><td>Add or edit a course</td><td>The <strong>Admin</strong> page on the site</td></tr>
+<tr><td>Sample course (shows when no course is published)</td><td><code>data/courses.js</code></td></tr>
+<tr><td>Colors and layout</td><td><code>app/globals.css</code></td></tr>
+<tr><td>About and Privacy text</td><td><code>app/about/page.js</code>, <code>app/privacy/page.js</code></td></tr>
+<tr><td>Lesson page code</td><td><code>app/course/[slug]/</code></td></tr>
+<tr><td>Database</td><td><code>supabase-all.sql</code></td></tr>
+<tr><td>Supabase keys</td><td><code>.env.local</code> on your computer. Environment Variables in Vercel.</td></tr>
+<tr><td>Tests</td><td>The <code>tests</code> folder. Run <code>npm test</code>.</td></tr>
+<tr><td>Search-engine files</td><td><code>app/sitemap.js</code>, <code>app/robots.js</code></td></tr>
+<tr><td>List of changes</td><td><code>CHANGELOG.md</code></td></tr>
+</table>
+</div>
+
+</main>
+</body>
+</html>
