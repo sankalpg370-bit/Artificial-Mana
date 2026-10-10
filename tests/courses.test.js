@@ -40,4 +40,24 @@ describe("getCourses", () => {
     expect(list[0].lessons[1].quiz).toBeUndefined();
     expect(list[0].category).toBe("Basics");
   });
+  it("adds the built-in quiz bank to the matching database lesson", async () => {
+    const sampleQuiz = sample[0].lessons[0].quiz;
+    state.current = makeFake({ rows: {
+      courses: [{ slug: "intro-to-ai", title: "Introduction to AI", published: true }],
+      lessons: [{
+        id: "remote-l1",
+        course_slug: "intro-to-ai",
+        position: 1,
+        title: "What is Artificial Intelligence?",
+        youtube_id: "aaaaaaaaaaa",
+        quiz: sampleQuiz.slice(0, 2),
+      }],
+    } });
+
+    const list = await getCourses();
+    const lessonQuiz = list[0].lessons[0].quiz;
+
+    expect(lessonQuiz.length).toBeGreaterThanOrEqual(10);
+    expect(new Set(lessonQuiz.map((question) => question.q)).size).toBe(lessonQuiz.length);
+  });
 });

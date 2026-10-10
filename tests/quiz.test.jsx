@@ -38,6 +38,27 @@ describe("Quiz", () => {
     await u.click(screen.getByRole("button", { name: "Check answers" }));
     expect(JSON.parse(localStorage.getItem("quiz:c:l1")).score).toBe(2); // not lowered
   });
+  it("shows questions in batches of ten and saves the expanded quiz score", async () => {
+    const u = userEvent.setup();
+    const extendedQuiz = Array.from({ length: 12 }, (_, i) => ({
+      q: `Question ${i + 1}?`,
+      options: ["correct", "incorrect"],
+      answer: 0,
+    }));
+    render(<Quiz quiz={extendedQuiz} slug="c" lessonId="l1" user={null} />);
+
+    expect(screen.getAllByRole("radio")).toHaveLength(20);
+    await u.click(screen.getByRole("button", { name: "Show 2 more questions" }));
+    expect(screen.getAllByRole("radio")).toHaveLength(24);
+
+    for (const radio of screen.getAllByRole("radio").filter((_, index) => index % 2 === 0)) {
+      await u.click(radio);
+    }
+    await u.click(screen.getByRole("button", { name: "Check answers" }));
+
+    expect(screen.getByText("You got 12 of 12.")).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("quiz:c:l1"))).toEqual({ score: 12, total: 12 });
+  });
   it("saves to the account when the student is logged in", async () => {
     const u = userEvent.setup();
     const fake = makeFake({ user: { id: "u1" } });
