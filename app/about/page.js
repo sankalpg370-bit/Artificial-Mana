@@ -109,7 +109,7 @@ export default function About() {
 
       <p>
         <strong>Email:</strong>{" "}
-        <span>[Your contact email]</span>
+        <span>[telipublications@gmail.com]</span>
       </p>
     </div>
   );
