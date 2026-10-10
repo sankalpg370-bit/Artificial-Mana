@@ -17,6 +17,9 @@ export default function Classroom({ course }) {
   const [qtick, setQtick] = useState(0);
   const [quizOk, setQuizOk] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [teacher, setTeacher] = useState(false);
+  const [creatorMaterials, setCreatorMaterials] = useState([]);
+  const [materialsError, setMaterialsError] = useState("");
   const cs = useRef({ bookmarked: false, last: null });
   const loaded = useRef(false);
   const player = useRef(null);
@@ -100,6 +103,7 @@ export default function Classroom({ course }) {
   }, [index, course]);
 
   const lesson = course.lessons[index];
+  const visibleMaterials = creatorMaterials.filter((material) => !material.lesson_id || material.lesson_id === lesson.id);
   const nkey = `notes:${course.slug}:${lesson.id}`;
 
   useEffect(() => {
@@ -132,12 +136,41 @@ export default function Classroom({ course }) {
     if (supabase && user) setNotes((n) => n.filter((x) => x.id !== id));
     else saveLocal(notes.filter((x) => x.id !== id));
   }
-  const [teacher, setTeacher] = useState(false);
   useEffect(() => {
     if (!supabase || !user) { setTeacher(false); return; }
     supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
       .then(({ data }) => setTeacher(!!data && (data.role === "teacher" || data.role === "admin")));
   }, [user]);
+
+  useEffect(() => {
+    if (!supabase) {
+      setCreatorMaterials([]);
+      setMaterialsError("");
+      return;
+    }
+    let active = true;
+    supabase.from("creator_materials")
+      .select("id,lesson_id,kind,title,content,url,file_url")
+      .eq("course_slug", course.slug)
+      .eq("published", true)
+      .order("created_at")
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.error("Unable to load published creator materials.", error);
+          setMaterialsError("Course materials are temporarily unavailable.");
+          return;
+        }
+        setCreatorMaterials(data || []);
+        setMaterialsError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error("Unable to load published creator materials.", error);
+        setMaterialsError("Course materials are temporarily unavailable.");
+      });
+    return () => { active = false; };
+  }, [course.slug]);
 
   // Check if the student passed every quiz (60% or more). The certificate needs this.
   useEffect(() => {
@@ -265,6 +298,23 @@ export default function Classroom({ course }) {
               <a className="btn" href={lesson.pdf} download>Download PDF</a>
             </div>
             <iframe className="pdf" src={lesson.pdf} title="Lesson PDF" />
+          </div>
+        )}
+        {(visibleMaterials.length > 0 || materialsError) && (
+          <div className="materials">
+            <h3>Creator materials</h3>
+            {materialsError && <p className="muted" role="status">{materialsError}</p>}
+            {visibleMaterials.map((material) => (
+              <article className="panel" key={material.id}>
+                <p className="muted">{material.kind[0].toUpperCase() + material.kind.slice(1)}</p>
+                <h4>{material.title}</h4>
+                {material.content && <p className="creator-content">{material.content}</p>}
+                <div className="row">
+                  {material.url && <a className="btn" href={material.url} target="_blank" rel="noopener noreferrer">Open link</a>}
+                  {material.file_url && <a className="btn" href={material.file_url} target="_blank" rel="noopener noreferrer">Open file</a>}
+                </div>
+              </article>
+            ))}
           </div>
         )}
         <Certificate course={course} complete={course.lessons.every((l) => done.includes(l.id))} quizOk={quizOk} />

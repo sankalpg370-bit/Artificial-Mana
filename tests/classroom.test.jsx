@@ -44,6 +44,21 @@ describe("Classroom", () => {
     expect(players[0].opts.videoId).toBe("aaaaaaaaaaa");
     expect(players[0].opts.host).toBe("https://www.youtube-nocookie.com");
   });
+  it("shows published course and current lesson materials", async () => {
+    state.current = makeFake({ rows: { creator_materials: [
+      { id: "m1", course_slug: "intro", lesson_id: null, kind: "link", title: "Course guide", published: true, url: "https://example.com" },
+      { id: "m2", course_slug: "intro", lesson_id: "l1", kind: "assignment", title: "First lesson assignment", published: true },
+      { id: "m3", course_slug: "intro", lesson_id: "l2", kind: "note", title: "Other lesson note", published: true },
+      { id: "m4", course_slug: "intro", lesson_id: "l1", kind: "note", title: "Unpublished note", published: false },
+    ] } });
+
+    render(<Classroom course={course} />);
+
+    expect(await screen.findByText("Course guide")).toBeInTheDocument();
+    expect(screen.getByText("First lesson assignment")).toBeInTheDocument();
+    expect(screen.queryByText("Other lesson note")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unpublished note")).not.toBeInTheDocument();
+  });
   it("marks a lesson done when the video ends and plays the next one (Play All)", async () => {
     render(<Classroom course={course} />);
     await endVideo();

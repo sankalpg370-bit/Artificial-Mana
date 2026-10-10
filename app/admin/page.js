@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
@@ -63,6 +64,7 @@ export default function Admin() {
   return (
     <div className="wrap">
       <h1>Admin</h1>
+      <p><Link className="btn" href="/creator-studio">Open Creator Studio</Link></p>
       <p className="muted">Changes show on the public site in about 1 minute.</p>
       {msg && <p className="notice">{msg}</p>}
 
