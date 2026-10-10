@@ -10,6 +10,7 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
   const [best, setBest] = useState(null);
   const [visibleCount, setVisibleCount] = useState(QUESTIONS_PER_BATCH);
   const [message, setMessage] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
   const key = `quiz:${slug}:${lessonId}`;
   const visibleQuiz = quiz.slice(0, visibleCount);
 
@@ -74,10 +75,35 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
     }
   }
 
+  async function downloadAnswerKey() {
+    setPdfBusy(true);
+    setMessage("");
+    try {
+      const { makeQuizPdf } = await import("../../../lib/quiz-pdf");
+      const bytes = await makeQuizPdf({ quiz, title: "Artificial Mana Quick Quiz" });
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `quiz-answer-key-${slug}-${lessonId}.pdf`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error("Unable to create the quiz answer key PDF.", error);
+      setMessage("Could not create the PDF. Check that the quiz text uses supported characters and try again.");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   const all = visibleQuiz.every((q, i) => pick[i] !== undefined);
   return (
     <div className="quiz">
       <h3>Quick quiz</h3>
+      <div className="row">
+        <button className="alt" type="button" disabled={pdfBusy} onClick={downloadAnswerKey}>
+          {pdfBusy ? "Creating PDF..." : "Download quiz + answer key PDF"}
+        </button>
+      </div>
       {best && <p className="muted">Your best score: {best.score} of {best.total}</p>}
       {visibleQuiz.map((q, i) => (
         <div key={i} className="q">
