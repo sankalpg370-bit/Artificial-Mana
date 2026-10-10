@@ -20,58 +20,67 @@ export default function About() {
       <p>
         Welcome to <strong>Artificial Mana</strong>, a learning
         platform built on one simple belief: understanding
-        artificial intelligence shouldn't be complicated.
+        artificial intelligence should not be complicated.
       </p>
 
       <p>
-        Whether you're a complete beginner, a curious student,
-        or someone preparing for a future shaped by AI,
-        Artificial Mana is here to make your learning
-        journey easier.
+        Whether you are a complete beginner, a curious
+        student, or someone preparing for a future shaped
+        by AI, Artificial Mana is here to make your
+        learning journey easier.
       </p>
 
       <h2>Learn at Your Own Pace</h2>
 
       <p>
-        We believe the best way to understand something is
-        to learn it step by step.
+        We believe the best way to understand something
+        is to learn it step by step.
       </p>
 
       <ul>
         <li>
-          <strong>Short Video Lessons:</strong> Clear explanations
-          that make complex AI concepts easier to understand.
+          <strong>Short Video Lessons:</strong>{" "}
+          Clear explanations that make complex AI
+          concepts easier to understand.
         </li>
+
         <li>
-          <strong>Interactive Quizzes:</strong> Test your knowledge
-          and reinforce what you've learned.
+          <strong>Interactive Quizzes:</strong>{" "}
+          Test your knowledge and reinforce
+          what you have learned.
         </li>
+
         <li>
-          <strong>Downloadable PDF Notes:</strong> Review important
-          concepts whenever you need them.
+          <strong>Downloadable PDF Notes:</strong>{" "}
+          Review important concepts whenever
+          you need them.
         </li>
+
         <li>
-          <strong>Personal Learning Notes:</strong> Capture your
-          thoughts, discoveries, and questions in one place.
+          <strong>Personal Learning Notes:</strong>{" "}
+          Capture your thoughts, discoveries,
+          and questions in one place.
         </li>
       </ul>
 
       <p>
-        Our mission is to transform complicated AI concepts
-        into knowledge that anyone can understand and apply.
+        Our mission is to transform complicated
+        AI concepts into knowledge that anyone
+        can understand and apply.
       </p>
 
       <h2>Meet the Creator</h2>
 
       <p>
-        Hi, I'm <strong>Sankalp Gupta</strong>, a student,
-        author, and technology enthusiast with a passion
-        for artificial intelligence and education.
+        Hi, I am <strong>Sankalp Gupta</strong>,
+        a student, author, and technology enthusiast
+        with a passion for artificial intelligence
+        and education.
       </p>
 
       <p>
-        I created Artificial Mana because I believe AI
-        knowledge should be accessible to everyone,
+        I created Artificial Mana because I believe
+        AI knowledge should be accessible to everyone,
         regardless of their technical background.
         My goal is to help curious minds move beyond
         simply hearing about AI and start truly
@@ -88,28 +97,41 @@ export default function About() {
       </p>
 
       <p>
-        Artificial Mana is more than a collection of lessons.
-        It's a place to build curiosity, develop practical
-        skills, and prepare for a future where artificial
-        intelligence plays an increasingly important role.
+        Artificial Mana is more than a collection
+        of lessons. It is a place to build curiosity,
+        develop practical skills, and prepare for
+        a future where artificial intelligence
+        plays an increasingly important role.
       </p>
 
       <p>
         <em>
-          Learn simply. Think intelligently. Build confidently.
+          Learn simply. Think intelligently.
+          Build confidently.
         </em>
       </p>
 
       <h2>Contact</h2>
 
       <p>
-        Have a question, suggestion, or idea for
-        Artificial Mana? I'd love to hear from you.
+        Have a question, suggestion, or idea
+        for Artificial Mana? I would love
+        to hear from you.
       </p>
 
       <p>
-        <strong>Email:</strong>{" "}
-        <span>[telipublications@gmail.com]</span>
+        <strong>Email: </strong>
+        <a
+          href="mailto:telipublications@gmail.com"
+          style={{
+            color: "#2563eb",
+            textDecoration: "underline",
+            fontWeight: "600",
+            overflowWrap: "anywhere",
+          }}
+        >
+          telipublications@gmail.com
+        </a>
       </p>
     </div>
   );
