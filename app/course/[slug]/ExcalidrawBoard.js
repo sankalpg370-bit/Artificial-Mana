@@ -2,7 +2,7 @@
 import "@excalidraw/excalidraw/index.css";
 import { Excalidraw } from "@excalidraw/excalidraw";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "../../../lib/supabase";
+import { backend } from "../../../lib/backend";
 import { useDebouncedSave } from "../../../lib/use-debounced-save";
 
 export default function ExcalidrawBoard({ slug, lessonId, user }) {
@@ -30,8 +30,8 @@ export default function ExcalidrawBoard({ slug, lessonId, user }) {
     async function load() {
       try {
         let saved;
-        if (supabase && user) {
-          const { data, error } = await supabase.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", dbId).maybeSingle();
+        if (backend && user) {
+          const { data, error } = await backend.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", dbId).maybeSingle();
           if (error) throw error;
           saved = data?.data;
         } else saved = JSON.parse(localStorage.getItem(key));
@@ -54,8 +54,8 @@ export default function ExcalidrawBoard({ slug, lessonId, user }) {
     if (signature.current === next) return;
     signature.current = next;
     persistence.schedule(async () => {
-      if (supabase && user) {
-        const { error } = await supabase.from("boards").upsert({ user_id: user.id, course_slug: slug, lesson_id: dbId, data }, { onConflict: "user_id,course_slug,lesson_id" });
+      if (backend && user) {
+        const { error } = await backend.from("boards").upsert({ user_id: user.id, course_slug: slug, lesson_id: dbId, data }, { onConflict: "user_id,course_slug,lesson_id" });
         if (error) throw error;
       } else localStorage.setItem(key, JSON.stringify(data));
     });

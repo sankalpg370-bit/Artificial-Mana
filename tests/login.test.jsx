@@ -3,8 +3,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const authState = { current: null };
-vi.mock("../lib/supabase", () => ({
-  get supabase() {
+vi.mock("../lib/backend", () => ({
+  get backend() {
     return authState.current;
   },
 }));
@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("Login", () => {
-  it("does not send an empty sign-up to Supabase as an anonymous sign-in", async () => {
+  it("does not send an empty sign-up to the backend as an anonymous sign-in", async () => {
     const user = userEvent.setup();
     const signUp = vi.fn();
     authState.current = { auth: { signUp, signInWithPassword: vi.fn() } };
@@ -31,7 +31,7 @@ describe("Login", () => {
     expect(signUp).not.toHaveBeenCalled();
   });
 
-  it("requires a six-character password before sign-up", async () => {
+  it("requires a ten-character password before sign-up", async () => {
     const user = userEvent.setup();
     const signUp = vi.fn();
     authState.current = { auth: { signUp, signInWithPassword: vi.fn() } };
@@ -41,7 +41,7 @@ describe("Login", () => {
     await user.type(screen.getByLabelText("Password"), "12345");
     await user.click(screen.getByRole("button", { name: "Sign up" }));
 
-    expect(screen.getByText("Your password must be at least 6 characters long.")).toBeInTheDocument();
+    expect(screen.getByText("Your password must be at least 10 characters long.")).toBeInTheDocument();
     expect(signUp).not.toHaveBeenCalled();
   });
 });

@@ -5,31 +5,33 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "typecheck": "tsc --project tsconfig.typecheck.json",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:smoke": "playwright test --config playwright.smoke.config.js",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "admin:create": "node --env-file-if-exists=.env.local scripts/account.mjs create-admin",
+    "account:reset": "node --env-file-if-exists=.env.local scripts/account.mjs reset-password",
+    "backup": "node --env-file-if-exists=.env.local scripts/backup.mjs",
+    "start:home": "node --env-file-if-exists=.env.local scripts/home-server.mjs"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.1",
     "@fontsource-variable/inter": "5.3.0",
-    "@supabase/supabase-js": "2.117.3",
     "@tiptap/core": "3.31.4",
     "@tiptap/html": "3.31.4",
     "@tiptap/pm": "3.31.4",
     "@tiptap/react": "3.31.4",
     "@tiptap/starter-kit": "3.31.4",
-    "@vercel/analytics": "^2.0.1",
     "next": "16.4.0",
     "pdf-lib": "1.17.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=24.0.0"
   },
   "devDependencies": {
     "@next/env": "16.4.0",
@@ -44,5 +46,16 @@
     "jsdom": "30.1.2",
     "typescript": "^5.9.3",
     "vitest": "5.0.3"
+  },
+  "overrides": {
+    "@excalidraw/excalidraw": {
+      "nanoid": "3.3.18",
+      "sass": "1.105.1"
+    },
+    "@excalidraw/mermaid-to-excalidraw": {
+      "nanoid": "5.1.16"
+    },
+    "lodash-es": "4.18.1",
+    "katex": "0.19.0"
   }
 }

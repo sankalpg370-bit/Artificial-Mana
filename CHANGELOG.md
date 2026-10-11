@@ -1,4 +1,4 @@
-# Changes from v1 to v11
+# Artificial Mana changes
 
 | Version | What was added |
 |---|---|
@@ -19,6 +19,7 @@
 | v15 | 57 unit tests. Playwright browser tests for visitor, student, and admin flows. GitHub Actions checks tests and production build. Private course-state and creator-material queries now filter by owner. Browser tests require a separate Supabase test project. |
 | v16 | Temporary admin portal gate with a short-lived secure cookie, an optional server-only access key, a manual lock button, and tests. Supabase login and admin roles remain required. |
 
-Final package (v14): all of the above in one project. All database steps are in `supabase-all.sql`.
+| v17 | Frontend audit: durable notes and drawing saves, stale-request guards, player cleanup, responsive layouts, theme synchronization, accessible tabs, and error recovery. |
+| v18 | Home-PC backend: local SQLite accounts/data, protected uploads, cookie sessions, server-side roles, polling teacher boards, Windows startup and backup tools. Supabase and analytics packages removed. See `DEPLOYMENT.md` for current Windows/public hosting instructions. |
 
-The project guide (`artificialmana-guide.html`) is now the complete version: updated diagram, features, roles, database tables, teacher steps, set-up, safety, fixes, and a list of what is not built yet.
+The SQL files and `artificialmana-guide.html` describe earlier Supabase releases and remain only as historical references. They are not used by the current server. Current setup, QA, and code are documented in `README.md`, `DEPLOYMENT.md`, and `audit/`.

@@ -34,6 +34,7 @@ async function installVideoTestDouble(page) {
       getCurrentTime() { return 42; }
       seekTo() {}
       playVideo() {}
+      destroy() {}
     }
 
     window.YT = { Player: TestPlayer };
@@ -92,7 +93,9 @@ test("visitor, student, and admin can complete the learning flow", async ({ brow
       process.env.E2E_ADMIN_EMAIL,
       process.env.E2E_ADMIN_PASSWORD
     );
-    await adminPage.goto("/admin");
+    await adminPage.goto("/management");
+    await adminPage.getByLabel("Temporary access key").fill("local-e2e-portal-key-not-for-production");
+    await adminPage.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(adminPage.getByRole("heading", { name: "New course" })).toBeVisible();
     await expect(adminPage.locator("html")).toHaveAttribute("data-theme", "light");
     await expectNoHorizontalOverflow(adminPage);
@@ -177,6 +180,28 @@ test("visitor, student, and admin can complete the learning flow", async ({ brow
       studentPage.getByRole("link", { name: "Open file" }).click(),
     ]);
     await expect(filePage.locator("body")).toContainText(uploadText);
+
+    // Verify teacher-board updates travel through the real local API and redraw for a student.
+    await adminPage.goto(`/course/${courseSlug}`);
+    await adminPage.getByRole("tab", { name: "Boards", exact: true }).click();
+    await adminPage.getByRole("button", { name: "Open teacher board" }).click();
+    await studentPage.getByRole("tab", { name: "Boards", exact: true }).click();
+    await studentPage.getByRole("button", { name: "Watch teacher board" }).click();
+    const studentCanvas = studentPage.locator("canvas.wb-canvas");
+    await expect.poll(() => studentCanvas.evaluate((canvas) => [...canvas.getContext("2d").getImageData(0, 0, 1, 1).data].join(","))).toBe("31,59,45,255");
+    const originalBoard = await studentCanvas.evaluate((canvas) => canvas.toDataURL());
+    const adminCanvas = adminPage.locator("canvas.wb-canvas");
+    const boardBox = await adminCanvas.boundingBox();
+    await adminPage.mouse.move(boardBox.x + 30, boardBox.y + 30);
+    await adminPage.mouse.down();
+    await adminPage.mouse.move(boardBox.x + 100, boardBox.y + 80, { steps: 5 });
+    await adminPage.mouse.up();
+    await expect.poll(() => studentCanvas.evaluate((canvas) => canvas.toDataURL())).not.toBe(originalBoard);
+    await expect(studentPage.getByRole("button", { name: "Clear", exact: true })).toHaveCount(0);
+    await studentPage.reload();
+    await studentPage.getByRole("tab", { name: "Notes", exact: true }).click();
+    await expect(studentPage.getByText(noteText)).toBeVisible();
+    await expect(studentPage.getByText("1 of 1 lessons done")).toBeVisible();
   } finally {
     await adminContext.close();
     await studentContext.close();

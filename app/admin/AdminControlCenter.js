@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { backend } from "../../lib/backend";
 
 const TABLES = [
   { name: "profiles", label: "Users & roles", key: ["user_id"], order: "user_id", privateData: false },
@@ -32,9 +32,9 @@ export default function AdminControlCenter() {
 
   const reload = useCallback(async () => {
     const id = ++request.current;
-    if (!supabase) {
+    if (!backend) {
       setRows([]);
-      setMessage("Supabase is not configured.");
+      setMessage("the account service is not configured.");
       setLoading(false);
       return;
     }
@@ -42,7 +42,7 @@ export default function AdminControlCenter() {
     setMessage("");
     try {
       const start = page * PAGE_SIZE;
-      const { data, error } = await supabase.from(table.name).select("*")
+      const { data, error } = await backend.from(table.name).select("*")
         .order(table.order, { ascending: false })
         .range(start, start + PAGE_SIZE - 1);
       if (error) throw error;
@@ -85,7 +85,7 @@ export default function AdminControlCenter() {
         return;
       }
       const payload = { ...edited };
-      const query = supabase.from(table.name).update(payload);
+      const query = backend.from(table.name).update(payload);
       for (const key of table.key) query.eq(key, record[key]);
       const { error } = await query;
       if (error) {
@@ -102,7 +102,7 @@ export default function AdminControlCenter() {
 
   async function saveRole(record, role) {
     try {
-      const { error } = await supabase.from("profiles").update({ role }).eq("user_id", record.user_id);
+      const { error } = await backend.from("profiles").update({ role }).eq("user_id", record.user_id);
       if (error) {
         setMessage(`Could not update user role: ${error.message}`);
         return;
@@ -118,7 +118,7 @@ export default function AdminControlCenter() {
   async function deleteRecord(record) {
     try {
       if (!window.confirm(`Permanently delete this ${table.label.toLowerCase()} record (${rowKey(record, table.key)})?`)) return;
-      const query = supabase.from(table.name).delete();
+      const query = backend.from(table.name).delete();
       for (const key of table.key) query.eq(key, record[key]);
       const { error } = await query;
       if (error) {

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useDebouncedSave } from "../../../lib/use-debounced-save";
-import { supabase } from "../../../lib/supabase";
+import { backend } from "../../../lib/backend";
 
 const ExcalidrawBoard = dynamic(() => import("./ExcalidrawBoard"), { ssr: false, loading: () => <p className="muted">Loading the board...</p> });
 
@@ -120,12 +120,12 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
     };
     const read = async () => {
       try {
-        if (shared && supabase) {
-          const { data, error } = await supabase.from("lesson_boards").select("data").eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle();
+        if (shared && backend) {
+          const { data, error } = await backend.from("lesson_boards").select("data").eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle();
           if (error) throw error;
           apply(data?.data);
-        } else if (supabase && user && !shared) {
-          const { data, error } = await supabase.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle();
+        } else if (backend && user && !shared) {
+          const { data, error } = await backend.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle();
           if (error) throw error;
           apply(data?.data);
         } else apply(shared ? null : JSON.parse(localStorage.getItem(key)));
@@ -143,11 +143,11 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
     dirty.current = false;
     const data = { board, strokes };
     schedule(async () => {
-      if (shared && canEdit && supabase) {
-        const { error } = await supabase.from("lesson_boards").upsert({ course_slug: slug, lesson_id: lessonId, data, updated_at: new Date().toISOString() }, { onConflict: "course_slug,lesson_id" });
+      if (shared && canEdit && backend) {
+        const { error } = await backend.from("lesson_boards").upsert({ course_slug: slug, lesson_id: lessonId, data, updated_at: new Date().toISOString() }, { onConflict: "course_slug,lesson_id" });
         if (error) throw error;
-      } else if (!shared && supabase && user) {
-        const { error } = await supabase.from("boards").upsert({ user_id: user.id, course_slug: slug, lesson_id: lessonId, data }, { onConflict: "user_id,course_slug,lesson_id" });
+      } else if (!shared && backend && user) {
+        const { error } = await backend.from("boards").upsert({ user_id: user.id, course_slug: slug, lesson_id: lessonId, data }, { onConflict: "user_id,course_slug,lesson_id" });
         if (error) throw error;
       } else if (!shared) localStorage.setItem(key, JSON.stringify(data));
     });
@@ -155,8 +155,8 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
 
   // Students watch the teacher board. It updates when the teacher saves (about 1 to 2 seconds).
   useEffect(() => {
-    if (!open || !shared || canEdit || !supabase) return;
-    const ch = supabase.channel(`tboard-${slug}-${lessonId}`)
+    if (!open || !shared || canEdit || !backend) return;
+    const ch = backend.channel(`tboard-${slug}-${lessonId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "lesson_boards", filter: `lesson_id=eq.${lessonId}` }, (p) => {
         const row = p.new;
         if (!row || row.course_slug !== slug || !row.data) return;
@@ -165,7 +165,7 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
         if (row.data.board) setBoardRaw(row.data.board);
       })
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => { backend.removeChannel(ch); };
   }, [open, shared, canEdit, slug, lessonId]);
 
   function commit(next) { dirty.current = true; hist.current.push(cur.current); fut.current = []; cur.current = next; setStrokes(next); }

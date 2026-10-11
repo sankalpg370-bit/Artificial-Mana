@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { makeFake, state } from "./fake-supabase.js";
+import { makeFake, state } from "./fake-backend.js";
 
-vi.mock("../lib/supabase", async () => {
-  const { state } = await import("./fake-supabase.js");
-  return { get supabase() { return state.current; } };
+vi.mock("../lib/backend", async () => {
+  const { state } = await import("./fake-backend.js");
+  return { get backend() { return state.current; } };
 });
 import Comments from "../app/course/[slug]/Comments";
 

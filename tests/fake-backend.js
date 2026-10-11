@@ -1,4 +1,4 @@
-// A small fake of the Supabase client for tests. It keeps rows in memory.
+// A small fake of the local backend client for tests. It keeps rows in memory.
 export const state = { current: null };
 
 export function makeFake({ user = null, rows = {}, failInsert = null } = {}) {

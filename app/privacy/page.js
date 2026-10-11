@@ -5,7 +5,7 @@ export const metadata = {
 };
 
 export default function Privacy() {
-  const lastUpdated = "October 10, 2026";
+  const lastUpdated = "October 11, 2026";
 
   return (
     <div className="wrap prose">
@@ -89,15 +89,9 @@ export default function Privacy() {
       <h2>3. Data Storage and Security</h2>
 
       <p>
-        Artificial Mana uses{" "}
-        <a
-          href="https://supabase.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Supabase
-        </a>{" "}
-        for authentication and data storage.
+        Account records, learning data, and uploaded files are stored on the
+        site operator&apos;s own server. Access to account data is checked by
+        the application before it is returned to a browser.
       </p>
 
       <p>
@@ -133,8 +127,7 @@ export default function Privacy() {
       </p>
 
       <p>
-        We use Vercel Analytics to count visits to pages. We use these counts
-        to learn which pages students read.
+        The hosting server may retain operational and security logs.
       </p>
 
       <h2>5. YouTube Videos</h2>
@@ -191,7 +184,7 @@ export default function Privacy() {
         Information may be processed
         by service providers that help
         operate the website, including
-        Supabase and embedded video providers.
+        the HTTPS connection provider and embedded video providers.
       </p>
 
       <p>

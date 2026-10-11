@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { makeFake, state } from "./fake-supabase.js";
+import { makeFake, state } from "./fake-backend.js";
 
-vi.mock("../lib/supabase", async () => {
-  const { state } = await import("./fake-supabase.js");
-  return { get supabase() { return state.current; } };
+vi.mock("../lib/backend", async () => {
+  const { state } = await import("./fake-backend.js");
+  return { get backend() { return state.current; } };
 });
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),

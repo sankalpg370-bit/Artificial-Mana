@@ -3,7 +3,6 @@ import "./globals.css";
 import Link from "next/link";
 import AuthButton from "./AuthButton";
 import ThemeToggle from "./ThemeToggle";
-import { Analytics } from "@vercel/analytics/next";
 import { SITE_URL } from "../lib/site";
 
 export const metadata = {
@@ -52,7 +51,6 @@ export default function RootLayout({ children }) {
           </div>
           <p className="foot-note">© Artificial Mana</p>
         </footer>
-        <Analytics />
       </body>
     </html>
   );

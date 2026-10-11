@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabase";
+import { backend } from "../../lib/backend";
 import AdminControlCenter from "./AdminControlCenter";
 import { getYouTubeVideoId } from "../../lib/youtube";
 
@@ -22,10 +22,10 @@ export default function Admin() {
   const [nc, setNc] = useState({ title: "", description: "", category: "" });
 
   useEffect(() => {
-    if (!supabase) { setUser(null); return; }
+    if (!backend) { setUser(null); return; }
     let active = true;
     let authChanged = false;
-    supabase.auth.getSession()
+    backend.auth.getSession()
       .then(({ data, error }) => {
         if (!active || authChanged) return;
         if (error) throw error;
@@ -38,17 +38,17 @@ export default function Admin() {
           setUser(null);
         }
       });
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = backend.auth.onAuthStateChange((_event, session) => {
       authChanged = true;
       if (active) { setUser(session?.user ?? null); setRole(null); }
     });
     return () => { active = false; subscription.subscription.unsubscribe(); };
   }, []);
   useEffect(() => {
-    if (!supabase || !user) return;
+    if (!backend || !user) return;
     let active = true;
     setRole(null);
-    supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
+    backend.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
       .then(({ data, error }) => {
         if (!active) return;
         if (error) {
@@ -73,8 +73,8 @@ export default function Admin() {
     setCourseLoadError("");
     try {
       const [c, l] = await Promise.all([
-        supabase.from("courses").select("*").order("created_at"),
-        supabase.from("lessons").select("*").order("position"),
+        backend.from("courses").select("*").order("created_at"),
+        backend.from("lessons").select("*").order("position"),
       ]);
       if (c.error || l.error) throw c.error || l.error;
       setCourses(c.data || []);
@@ -95,7 +95,7 @@ export default function Admin() {
     try {
       const slug = slugify(nc.title);
       if (!slug) { setMsg("Write a title for the course."); return; }
-      const { error } = await supabase.from("courses").insert({
+      const { error } = await backend.from("courses").insert({
         slug, title: nc.title.trim(), description: nc.description.trim(), category: nc.category.trim() || null, published: false });
       if (error) { setMsg(error.message); return; }
       setNc({ title: "", description: "", category: "" }); setMsg("Course made. Add lessons. Then publish it."); reload();
@@ -106,7 +106,7 @@ export default function Admin() {
   }
   async function togglePublish(c) {
     try {
-      const { error } = await supabase.from("courses").update({ published: !c.published }).eq("slug", c.slug);
+      const { error } = await backend.from("courses").update({ published: !c.published }).eq("slug", c.slug);
       if (error) setMsg(error.message); else reload();
     } catch (error) {
       console.error("Admin action failed.", error);
@@ -116,7 +116,7 @@ export default function Admin() {
   async function deleteCourse(c) {
     try {
       if (!window.confirm(`Delete the course "${c.title}" and all its lessons?`)) return;
-      const { error } = await supabase.from("courses").delete().eq("slug", c.slug);
+      const { error } = await backend.from("courses").delete().eq("slug", c.slug);
       if (error) setMsg(error.message); else reload();
     } catch (error) {
       console.error("Admin action failed.", error);
@@ -138,7 +138,7 @@ export default function Admin() {
 
   if (user === undefined) return <div className="wrap" role="status"><p className="muted">Checking sign-in...</p></div>;
   if (authError) return <div className="wrap"><h1>Admin</h1><p role="alert">{authError}</p><Link className="btn" href="/login?next=%2Fadmin">Sign in</Link></div>;
-  if (!supabase) return <div className="wrap"><p role="alert">Supabase is not configured. Set the public Supabase URL and anon key in the environment, then rebuild.</p></div>;
+  if (!backend) return <div className="wrap"><p role="alert">Accounts are disabled in this browser-only demo.</p></div>;
   if (!user) return <div className="wrap"><h1>Admin</h1><p><Link href="/login?next=%2Fadmin">Log in to your admin account</Link></p></div>;
   if (role === null) return <div className="wrap"><p className="muted">Loading...</p></div>;
   if (role === "error") return <div className="wrap"><h1>Admin</h1><p role="alert">{msg}</p></div>;
@@ -206,14 +206,14 @@ function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
       let pdf_url = edit && !removePdf ? initial.pdf_url : null;
       if (file) {
         const path = `${course.slug}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
-        const up = await supabase.storage.from("lesson-pdfs").upload(path, file, { contentType: "application/pdf" });
+        const up = await backend.storage.from("lesson-pdfs").upload(path, file, { contentType: "application/pdf" });
         if (up.error) { setMsg(up.error.message); setBusy(false); return; }
-        pdf_url = supabase.storage.from("lesson-pdfs").getPublicUrl(path).data.publicUrl;
+        pdf_url = backend.storage.from("lesson-pdfs").getPublicUrl(path).data.publicUrl;
       }
       const row = { title: title.trim(), youtube_id: id, pdf_url, quiz: cleanQuiz.length ? cleanQuiz : null };
       const res = edit
-        ? await supabase.from("lessons").update(row).eq("id", initial.id)
-        : await supabase.from("lessons").insert({ ...row, course_slug: course.slug, position: lessons.reduce((m, l) => Math.max(m, l.position), 0) + 1 });
+        ? await backend.from("lessons").update(row).eq("id", initial.id)
+        : await backend.from("lessons").insert({ ...row, course_slug: course.slug, position: lessons.reduce((m, l) => Math.max(m, l.position), 0) + 1 });
       setBusy(false);
       if (res.error) { setMsg(res.error.message); return; }
       setMsg(edit ? "Lesson saved." : "Lesson added.");
@@ -265,7 +265,7 @@ function CourseEditor({ course, lessons, onPublish, onDelete, reload, setMsg }) 
   async function saveDetails() {
     try {
       if (!d.title.trim()) { setMsg("The course needs a title."); return; }
-      const { error } = await supabase.from("courses").update({
+      const { error } = await backend.from("courses").update({
         title: d.title.trim(), description: d.description.trim(), category: d.category.trim() || null }).eq("slug", course.slug);
       if (error) { setMsg(error.message); return; }
       setEd(false); setMsg("Course saved."); reload();
@@ -277,7 +277,7 @@ function CourseEditor({ course, lessons, onPublish, onDelete, reload, setMsg }) 
   async function removeLesson(l) {
     try {
       if (!window.confirm(`Delete the lesson "${l.title}"?`)) return;
-      const { error } = await supabase.from("lessons").delete().eq("id", l.id);
+      const { error } = await backend.from("lessons").delete().eq("id", l.id);
       if (error) setMsg(error.message); else reload();
     } catch (error) {
       console.error("Admin action failed.", error);
@@ -288,12 +288,12 @@ function CourseEditor({ course, lessons, onPublish, onDelete, reload, setMsg }) 
     try {
       const a = lessons[i], b = lessons[i + dir];
       if (!a || !b) return;
-      const first = await supabase.from("lessons").update({ position: b.position }).eq("id", a.id);
+      const first = await backend.from("lessons").update({ position: b.position }).eq("id", a.id);
       if (first.error) throw first.error;
-      const second = await supabase.from("lessons").update({ position: a.position }).eq("id", b.id);
+      const second = await backend.from("lessons").update({ position: a.position }).eq("id", b.id);
       if (second.error) {
         // Best-effort rollback keeps a failed reorder from silently duplicating positions.
-        await supabase.from("lessons").update({ position: a.position }).eq("id", a.id);
+        await backend.from("lessons").update({ position: a.position }).eq("id", a.id);
         throw second.error;
       }
       reload();

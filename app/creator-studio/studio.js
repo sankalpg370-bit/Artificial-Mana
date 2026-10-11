@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { supabase } from "../../lib/supabase";
+import { backend } from "../../lib/backend";
 
 const RESOURCE_TYPES = [
   ["link", "Link"],
@@ -59,13 +59,13 @@ export default function CreatorStudio() {
   const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    if (!supabase) {
+    if (!backend) {
       setUser(null);
       return;
     }
     let active = true;
     let authChanged = false;
-    supabase.auth.getSession()
+    backend.auth.getSession()
       .then(({ data, error }) => {
         if (!active || authChanged) return;
         if (error) throw error;
@@ -78,7 +78,7 @@ export default function CreatorStudio() {
           setMessage(`Unable to check sign-in: ${errorMessage(error)}`);
         }
       });
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = backend.auth.onAuthStateChange((_event, session) => {
       authChanged = true;
       if (active) setUser(session?.user ?? null);
     });
@@ -89,7 +89,7 @@ export default function CreatorStudio() {
   }, []);
 
   useEffect(() => {
-    if (!supabase || !user) {
+    if (!backend || !user) {
       setRole(null);
       setResources([]);
       setForm(emptyForm());
@@ -97,7 +97,7 @@ export default function CreatorStudio() {
     }
     let active = true;
     setRole(null);
-    supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
+    backend.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
       .then(({ data, error }) => {
         if (!active) return;
         if (error) {
@@ -118,14 +118,14 @@ export default function CreatorStudio() {
 
   const reload = useCallback(async () => {
     const id = ++request.current;
-    if (!user || !supabase) return false;
+    if (!user || !backend) return false;
     setLoading(true);
     setLoadError("");
     try {
       const [courseResult, lessonResult, resourceResult] = await Promise.all([
-        supabase.from("courses").select("slug,title").order("created_at"),
-        supabase.from("lessons").select("id,course_slug,title").order("position"),
-        supabase.from("creator_materials").select("*")
+        backend.from("courses").select("slug,title").order("created_at"),
+        backend.from("lessons").select("id,course_slug,title").order("position"),
+        backend.from("creator_materials").select("*")
           .eq("creator_id", user.id).order("created_at"),
       ]);
       const failed = [courseResult, lessonResult, resourceResult].find((result) => result.error);
@@ -135,7 +135,7 @@ export default function CreatorStudio() {
       setLessons(lessonResult.data || []);
       const resourcesWithFiles = await Promise.all((resourceResult.data || []).map(async (resource) => {
         if (!resource.storage_path) return resource;
-        const { data, error } = await supabase.storage.from("creator-materials")
+        const { data, error } = await backend.storage.from("creator-materials")
           .createSignedUrl(resource.storage_path, 3600);
         if (error) throw new Error(error.message);
         return { ...resource, signed_file_url: data.signedUrl };
@@ -148,7 +148,7 @@ export default function CreatorStudio() {
       if (id !== request.current) return false;
       console.error("Unable to load creator materials.", error);
       setLoadError("Could not load creator materials. Check your connection and try again.");
-      setMessage(`Could not load creator materials: ${errorMessage(error)}. Make sure the creator materials database setup has been applied.`);
+      setMessage(`Could not load creator materials: ${errorMessage(error)}`);
       return false;
     } finally {
       if (id === request.current) setLoading(false);
@@ -239,7 +239,7 @@ export default function CreatorStudio() {
       if (form.file) {
         const safeName = form.file.name.replace(/[^\w.-]/g, "_");
         uploadedPath = `${user.id}/${Date.now()}-${safeName}`;
-        const upload = await supabase.storage.from("creator-materials").upload(uploadedPath, form.file, {
+        const upload = await backend.storage.from("creator-materials").upload(uploadedPath, form.file, {
           contentType: FILE_TYPES[fileExt(form.file.name)],
           upsert: false,
         });
@@ -260,13 +260,13 @@ export default function CreatorStudio() {
         published: form.published,
       };
       const result = form.id
-        ? await supabase.from("creator_materials").update(row).eq("id", form.id)
-        : await supabase.from("creator_materials").insert(row);
+        ? await backend.from("creator_materials").update(row).eq("id", form.id)
+        : await backend.from("creator_materials").insert(row);
       if (result.error) throw new Error(result.error.message);
       committed = true;
 
       if (form.id && uploadedPath && form.storage_path) {
-        const removal = await supabase.storage.from("creator-materials").remove([form.storage_path]);
+        const removal = await backend.storage.from("creator-materials").remove([form.storage_path]);
         if (removal.error) {
           cleanupWarning = `Material saved, but the old uploaded file could not be removed: ${removal.error.message}`;
         }
@@ -278,7 +278,7 @@ export default function CreatorStudio() {
     } catch (error) {
       // Once linked, a cleanup failure must never remove the new, live file.
       if (uploadedPath && !committed) {
-        const cleanup = await supabase.storage.from("creator-materials").remove([uploadedPath]);
+        const cleanup = await backend.storage.from("creator-materials").remove([uploadedPath]);
         if (cleanup.error) console.error("Unable to clean up an unlinked creator upload.", cleanup.error);
       }
       console.error("Unable to save creator material.", error);
@@ -292,11 +292,11 @@ export default function CreatorStudio() {
     if (!window.confirm(`Delete "${resource.title}"?`)) return;
     setMessage("");
     try {
-      const { error } = await supabase.from("creator_materials").delete().eq("id", resource.id);
+      const { error } = await backend.from("creator_materials").delete().eq("id", resource.id);
       if (error) throw new Error(error.message);
       let cleanupWarning = "";
       if (resource.storage_path) {
-        const removal = await supabase.storage.from("creator-materials").remove([resource.storage_path]);
+        const removal = await backend.storage.from("creator-materials").remove([resource.storage_path]);
         if (removal.error) {
           cleanupWarning = `Material deleted, but the uploaded file could not be removed: ${removal.error.message}`;
         }
@@ -311,7 +311,7 @@ export default function CreatorStudio() {
   }
 
   if (user === undefined) return <div className="wrap"><p className="muted">Checking sign-in...</p></div>;
-  if (!supabase) return <div className="wrap"><h1>Creator Studio</h1><p role="alert">Sign-in and creator storage are not configured. Set the public Supabase URL and anon key in the environment, then rebuild.</p></div>;
+  if (!backend) return <div className="wrap"><h1>Creator Studio</h1><p role="alert">Sign-in and creator storage are not configured. Accounts are disabled in this browser-only demo.</p></div>;
   if (!user) return <div className="wrap"><h1>Creator Studio</h1>{message && <p role="alert">{message}</p>}<p>You must sign in with a creator account to access this page.</p><Link className="btn" href="/login">Log in</Link></div>;
   if (role === null) return <div className="wrap"><p className="muted">Verifying creator access...</p></div>;
   if (!isCreator) return <div className="wrap"><h1>Creator Studio</h1><p role="alert">{message || "This page is only available to teacher and admin accounts."}</p></div>;
@@ -332,14 +332,14 @@ export default function CreatorStudio() {
           </label>
           <label>
             Course
-            <select required value={form.course_slug} onChange={(event) => changeForm("course_slug", event.target.value)}>
+            <select aria-label="Course" required value={form.course_slug} onChange={(event) => changeForm("course_slug", event.target.value)}>
               <option value="">Choose a course</option>
               {courses.map((course) => <option key={course.slug} value={course.slug}>{course.title}</option>)}
             </select>
           </label>
           <label>
             Lesson (optional)
-            <select value={form.lesson_id} onChange={(event) => changeForm("lesson_id", event.target.value)}>
+            <select aria-label="Lesson (optional)" value={form.lesson_id} onChange={(event) => changeForm("lesson_id", event.target.value)}>
               <option value="">Course-wide material</option>
               {formLessons.map((lesson) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
             </select>

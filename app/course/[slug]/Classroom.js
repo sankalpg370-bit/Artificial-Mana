@@ -7,16 +7,16 @@ import Comments from "./Comments";
 import Whiteboard from "./Whiteboard";
 import Notes, { fmt } from "./Notes";
 import { safeHtml } from "../../../lib/richtext";
-import { supabase } from "../../../lib/supabase";
+import { backend } from "../../../lib/backend";
 
 export default function Classroom({ course }) {
   const [user, setUser] = useState(null);
-  const [authReady, setAuthReady] = useState(!supabase);
+  const [authReady, setAuthReady] = useState(!backend);
   useEffect(() => {
-    if (!supabase) return;
+    if (!backend) return;
     let active = true;
     let authChanged = false;
-    supabase.auth.getSession().then(({ data, error }) => {
+    backend.auth.getSession().then(({ data, error }) => {
       if (!active || authChanged) return;
       if (error) console.error("Unable to check the current session.", error);
       setUser(data?.session?.user ?? null);
@@ -26,7 +26,7 @@ export default function Classroom({ course }) {
       console.error("Unable to check the current session.", error);
       setAuthReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => {
+    const { data: sub } = backend.auth.onAuthStateChange((_e, sess) => {
       authChanged = true;
       if (!active) return;
       setUser(sess?.user ?? null);
@@ -63,7 +63,7 @@ function ClassroomContent({ course, user }) {
   const key = "progress:" + course.slug;
 
   useEffect(() => {
-    if (!supabase || !user) {
+    if (!backend || !user) {
       try { const saved = JSON.parse(localStorage.getItem(key)); setDone(Array.isArray(saved) ? saved : []); } catch (error) {
         console.error("Unable to load local lesson progress.", error);
         setDone([]);
@@ -72,7 +72,7 @@ function ClassroomContent({ course, user }) {
     }
     setDone([]);
     let active = true;
-    supabase.from("progress").select("lesson_id").eq("user_id", user.id).eq("course_slug", course.slug)
+    backend.from("progress").select("lesson_id").eq("user_id", user.id).eq("course_slug", course.slug)
       .then(({ data, error }) => {
         if (!active) return;
         if (error) {
@@ -91,8 +91,8 @@ function ClassroomContent({ course, user }) {
   }, [key, user, course.slug]);
 
   function markDone(id) {
-    if (supabase && user) {
-      supabase.from("progress").upsert(
+    if (backend && user) {
+      backend.from("progress").upsert(
         { user_id: user.id, course_slug: course.slug, lesson_id: id },
         { onConflict: "user_id,course_slug,lesson_id" }
       ).then(({ error }) => {
@@ -102,7 +102,7 @@ function ClassroomContent({ course, user }) {
     setDone((d) => {
       if (d.includes(id)) return d;
       const n = [...d, id];
-      if (!supabase || !user) {
+      if (!backend || !user) {
         try { localStorage.setItem(key, JSON.stringify(n)); } catch (error) {
           console.error("Unable to save local lesson progress.", error);
           setSaveError("Your browser could not save lesson progress. Check your storage settings.");
@@ -191,8 +191,8 @@ function ClassroomContent({ course, user }) {
   useEffect(() => {
     let active = true;
     setNotes([]);
-    if (supabase && user) {
-      supabase.from("notes").select("id,seconds,content").eq("user_id", user.id).eq("course_slug", course.slug)
+    if (backend && user) {
+      backend.from("notes").select("id,seconds,content").eq("user_id", user.id).eq("course_slug", course.slug)
         .eq("lesson_id", lesson.id).order("seconds").then(({ data, error }) => {
           if (error) throw error;
           if (active) setNotes(data || []);
@@ -215,8 +215,8 @@ function ClassroomContent({ course, user }) {
 
   async function addNote(content, seconds) {
     const context = nkey;
-    if (supabase && user) {
-      const { data, error } = await supabase.from("notes")
+    if (backend && user) {
+      const { data, error } = await backend.from("notes")
         .insert({ user_id: user.id, course_slug: course.slug, lesson_id: lesson.id, seconds, content })
         .select("id,seconds,content").single();
       if (error || !data) throw error || new Error("No saved note was returned.");
@@ -227,29 +227,29 @@ function ClassroomContent({ course, user }) {
   }
   async function deleteNote(id) {
     const context = nkey;
-    if (supabase && user) {
-      const { error } = await supabase.from("notes").delete().eq("user_id", user.id).eq("id", id);
+    if (backend && user) {
+      const { error } = await backend.from("notes").delete().eq("user_id", user.id).eq("id", id);
       if (error) throw error;
       if (noteContext.current === context) setNotes((current) => current.filter((note) => note.id !== id));
     } else saveLocal(notes.filter((note) => note.id !== id));
   }
   useEffect(() => {
-    if (!supabase || !user) { setTeacher(false); return; }
+    if (!backend || !user) { setTeacher(false); return; }
     let active = true;
-    supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
+    backend.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
       .then(({ data, error }) => { if (active) setTeacher(!error && !!data && (data.role === "teacher" || data.role === "admin")); })
       .catch(() => { if (active) setTeacher(false); });
     return () => { active = false; };
   }, [user]);
 
   useEffect(() => {
-    if (!supabase) {
+    if (!backend) {
       setCreatorMaterials([]);
       setMaterialsError("");
       return;
     }
     let active = true;
-    supabase.from("creator_materials")
+    backend.from("creator_materials")
       .select("id,lesson_id,kind,title,content,url,file_url,storage_path")
       .eq("course_slug", course.slug)
       .eq("published", true)
@@ -263,7 +263,7 @@ function ClassroomContent({ course, user }) {
         }
         Promise.allSettled((data || []).map(async (material) => {
           if (!material.storage_path) return material;
-          const { data: file, error: fileError } = await supabase.storage
+          const { data: file, error: fileError } = await backend.storage
             .from("creator-materials").createSignedUrl(material.storage_path, 3600);
           if (fileError) throw fileError;
           return { ...material, signed_file_url: file.signedUrl };
@@ -293,9 +293,9 @@ function ClassroomContent({ course, user }) {
     const need = course.lessons.filter((l) => l.quiz?.length);
     const pass = (r) => !!r && r.total > 0 && r.score / r.total >= 0.6;
     if (!need.length) { setQuizOk(true); return; }
-    if (supabase && user) {
+    if (backend && user) {
       setQuizOk(false);
-      supabase.from("quiz_results").select("lesson_id,score,total").eq("user_id", user.id).eq("course_slug", course.slug).then(({ data, error }) => {
+      backend.from("quiz_results").select("lesson_id,score,total").eq("user_id", user.id).eq("course_slug", course.slug).then(({ data, error }) => {
         if (!active) return;
         if (error) throw error;
         const m = {};
@@ -313,8 +313,8 @@ function ClassroomContent({ course, user }) {
   const save = useCallback((patch) => {
     cs.current = { ...cs.current, ...patch };
     const st = cs.current;
-    if (supabase && user) {
-      supabase.from("course_state").upsert(
+    if (backend && user) {
+      backend.from("course_state").upsert(
         { user_id: user.id, course_slug: course.slug, bookmarked: st.bookmarked, last_lesson: st.last },
         { onConflict: "user_id,course_slug" }
       ).then(({ error }) => { if (error) throw error; }).catch(() => setSaveError("Your course bookmark or last lesson could not be saved. Try again."));
@@ -343,8 +343,8 @@ function ClassroomContent({ course, user }) {
       setIndex(Math.max(0, i));
       setStateReady(true);
     }
-    if (supabase && user) {
-      supabase.from("course_state").select("bookmarked,last_lesson")
+    if (backend && user) {
+      backend.from("course_state").select("bookmarked,last_lesson")
         .eq("user_id", user.id).eq("course_slug", course.slug).maybeSingle()
         .then(({ data, error }) => {
           if (error) throw error;
@@ -366,8 +366,8 @@ function ClassroomContent({ course, user }) {
 
   async function exportNotes() {
     const all = {};
-    if (supabase && user) {
-      const { data, error } = await supabase.from("notes").select("lesson_id,seconds,content")
+    if (backend && user) {
+      const { data, error } = await backend.from("notes").select("lesson_id,seconds,content")
         .eq("user_id", user.id).eq("course_slug", course.slug).order("seconds");
       if (error) {
         console.error("Unable to export your saved notes.", error);
@@ -424,7 +424,7 @@ function ClassroomContent({ course, user }) {
           </div>
           <div className="progress">
             <div className="bar" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: pct + "%" }} /></div>
-            <span className="muted">{`${doneCount} of ${course.lessons.length} lessons done`}{!user && supabase ? " · Log in to save your progress" : ""}</span>
+            <span className="muted">{`${doneCount} of ${course.lessons.length} lessons done`}{!user && backend ? " · Log in to save your progress" : ""}</span>
           </div>
           {saveError && <p role="alert">{saveError}</p>}
           <Certificate course={course} complete={course.lessons.every((l) => done.includes(l.id))} quizOk={quizOk} />

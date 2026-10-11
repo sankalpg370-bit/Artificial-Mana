@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "../../../lib/supabase";
+import { backend } from "../../../lib/backend";
 
 const when = (d) => new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
@@ -18,11 +18,11 @@ export default function Comments({ slug, lessonId, user, teacher }) {
   const pending = useRef(false);
 
   const load = useCallback(async () => {
-    if (!supabase) return;
+    if (!backend) return;
     const id = ++request.current;
     setLoading(true);
     try {
-      const { data, error } = await supabase.from("comments").select("*").eq("course_slug", slug).eq("lesson_id", lessonId).order("created_at");
+      const { data, error } = await backend.from("comments").select("*").eq("course_slug", slug).eq("lesson_id", lessonId).order("created_at");
       if (error) throw error;
       if (request.current === id) { setList(data || []); setMsg(""); }
     } catch {
@@ -37,7 +37,7 @@ export default function Comments({ slug, lessonId, user, teacher }) {
   }, [load]);
   useEffect(() => { try { setName(localStorage.getItem("comment-name") || ""); } catch (e) {} }, []);
 
-  if (!supabase) return null;
+  if (!backend) return null;
 
   async function post(body, parent) {
     if (!name.trim()) { setMsg("Write your name first."); return false; }
@@ -46,7 +46,7 @@ export default function Comments({ slug, lessonId, user, teacher }) {
     pending.current = true;
     setBusy(true);
     try {
-      const { error } = await supabase.from("comments").insert({
+      const { error } = await backend.from("comments").insert({
         course_slug: slug, lesson_id: lessonId, parent_id: parent,
         author_name: name.trim().slice(0, 40), body: body.trim().slice(0, 1000),
       });
@@ -64,7 +64,7 @@ export default function Comments({ slug, lessonId, user, teacher }) {
     pending.current = true;
     setBusy(true);
     try {
-      const { error } = await supabase.from("comments").delete().eq("id", comment.id);
+      const { error } = await backend.from("comments").delete().eq("id", comment.id);
       if (error) throw error;
       await load();
     } catch { setMsg("Could not delete this comment. Please retry."); }

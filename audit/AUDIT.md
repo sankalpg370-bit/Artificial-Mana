@@ -1,6 +1,6 @@
 # Artificial Mana frontend audit — October 11, 2026
 
-The authorized target is the existing Artificial Mana learning app. Its frontend uses Next.js, React, custom CSS, Supabase, Tiptap, Excalidraw, and YouTube. Chat history, AI token streaming, Markdown chat rendering, and chat copy buttons are not part of this application.
+The authorized target is the existing Artificial Mana learning app. Its frontend uses Next.js, React, custom CSS, local SQLite, Tiptap, Excalidraw, and YouTube. Following the frontend audit, the backend was migrated to run on the user’s Windows home PC, with public access through an HTTPS tunnel. Chat history, AI token streaming, Markdown chat rendering, and chat copy buttons are not part of this application.
 
 ## Confirmed issues and fixes
 
@@ -15,7 +15,7 @@ The authorized target is the existing Artificial Mana learning app. Its frontend
 | Whiteboard | Read/save failures were silent; stale board loads, delayed writes, and lost pending edits on navigation | Protect reads, avoid writing failed/empty hydration, debounce and serialize captured writes, flush during in-app unmount, offer retry |
 | Diagram board | Same persistence failures; theme permanently dark | Share safe autosave behavior, retry failed loads, observe document theme |
 | Creator uploads | Cleanup exception after successful material update could delete the newly linked file | Track whether the row commit succeeded; only clean up unlinked uploads |
-| Course materials | One failed signed file could hide every successful signed URL | Resolve individual file requests independently and retain accessible materials |
+| Course materials | One failed file URL could hide every successful file URL | Resolve individual file requests independently and retain accessible materials; local downloads now recheck authorization on every request |
 | Comments | Post/delete/network failures and duplicate submissions were not handled consistently | Preserve drafts, show failures, guard concurrent actions, invalidate stale loads |
 | Quiz scores | Failed score persistence had no retry without answering again | Add score-save retry with existing answers retained |
 | Admin actions | Rejected network calls escaped handlers; lesson upload could leave a stuck busy indicator | Catch CRUD/reorder failures and reset busy state; best-effort rollback of a partially failed reorder |
@@ -25,36 +25,49 @@ The authorized target is the existing Artificial Mana learning app. Its frontend
 
 Source files include comments explaining the critical ordering, cleanup, and persistence decisions. `corrected-files.md` contains complete code blocks for changed production sources/configuration; the repository files are the authoritative implementation.
 
+## Local backend implementation
+
+- Replaced Supabase auth/data/storage calls with same-origin Next.js API routes and a parameterized, allowlisted SQLite query layer. Students can access their own learning records; teachers manage course content and their own materials; admins retain the existing support/role controls.
+- Added salted scrypt passwords, opaque cookie sessions stored as token hashes, logout/session revocation, mutation-origin checks, bounded JSON/uploads, rate limits, and server-authoritative comment attribution.
+- Files are stored under `DATA_DIR/uploads`; creator files require ownership or a published material in a published course. Download responses use MIME restrictions, `nosniff`, sandboxing and no-store caching. Windows paths reject traversal and reserved syntax.
+- Teacher boards now poll the local API every 1.5 seconds while the page is visible. Pending polls cannot update a stopped subscription.
+- Added interactive admin creation/password recovery, SQLite-and-upload backups, a server restart runner, and Windows sign-in task registration. The deployment guide uses a persistent data folder outside the checkout and a Cloudflare named tunnel to `127.0.0.1:3000`.
+- Removed Supabase and analytics packages and configuration. Historical SQL and HTML setup guides are explicitly marked as old references. Existing Supabase users, password hashes and data have not been imported.
+- Patched vulnerable production transitive dependencies used by the diagram board and verified that the actual editor loads and follows theme changes in a browser.
+
 ## Verification
 
-The baseline had 82 passing unit tests and seven hook dependency warnings. The final unit suite passes 95 tests across 22 files. ESLint reports zero warnings/errors; the security-boundary TypeScript check and optimized production build pass. All six credential-free Playwright browser tests pass. `git diff --check` reports no whitespace errors. Automated regression coverage includes note failure/retry, board debounce/flush/retry/serialization, player cleanup/errors, malformed browser progress, delayed note reads, creator file cleanup, and cross-tab theme changes.
+The latest full verification passed 100 unit tests across 22 files, ESLint, the existing security-boundary TypeScript check, and an optimized production build. Seven public UI Playwright tests and two authenticated local-backend E2E tests pass. CLI checks confirmed admin creation, database/upload backup, password reset with session revocation, and reopening the backup. A production-only dependency audit reports zero known vulnerabilities; this does not make a claim about development-only packages or guarantee the absence of unknown vulnerabilities.
 
-The credential-free browser suite covers four viewport widths (320, 390, 768, 1280), course search, theme persistence, lesson navigation, bookmarks, timestamped notes, note deletion, drawing undo/redo/save, and unconfigured sign-in. The existing unit suite additionally exercises quizzes, certificates, creator/admin permissions, file types, and schema policy expectations using a fake database.
+The unit suite covers notes failure/retry, board debounce/flush/retry/serialization, player cleanup/errors, malformed browser progress, delayed reads, creator file cleanup, cross-tab themes, salted password verification, session revocation, private-row isolation, role escalation attempts, draft visibility, database restart persistence, safe query fields, comment limits, file permissions/path traversal, and request origins. Historical SQL tests are retained separately and are not evidence for the current backend’s permissions.
+
+The browser suites exercise four viewport widths (320, 390, 768, 1280), search, persistent themes, actual Excalidraw loading, lesson navigation, bookmarks, timestamped notes, note deletion, drawing undo/redo/save, browser-only demo login fallback, local account creation/login, admin course/lesson publication, creator upload and student download, saved progress, quizzes, certificate download, comments, and teacher-to-student board updates across two sessions. The E2E databases are disposable; real application data is not used.
+
+The YouTube player is simulated in automated browser tests. Actual playback, touch input, Windows Task Scheduler, and the public tunnel still require the deployment checks below. Local checks ran on macOS; the Windows machine has not been connected or deployed from this workspace.
 
 ## Quick manual QA before release
 
-- [ ] Search titles and lessons, clear the search, and switch categories; open a course directly and from its card.
-- [ ] Toggle both themes, reload, and change the theme in another tab. Check the diagram board theme too.
-- [ ] Check 320px, 390px, tablet and desktop layouts with a signed-in user with a long email; use keyboard Tab and lesson-tab arrow/Home/End keys.
-- [ ] Sign up, confirm email, log in/out, and switch accounts. Confirm one student's notes/progress/bookmarks do not appear in another account.
-- [ ] Switch lessons rapidly while throttling network requests; confirm old responses never replace the current lesson's notes or scores.
-- [ ] Play a real YouTube lesson to completion; verify progress, Previous/Next, Play All on/off, saved last lesson and timestamp seeking.
-- [ ] Save, format, delete and export notes; force an API failure and blocked/full browser storage. Ensure unsaved drafts remain available and retry succeeds.
-- [ ] Answer quizzes, expand questions, retry, download the answer key, and reload. Fail a score save and use Retry saving score.
-- [ ] Complete lessons and pass quizzes; download and inspect the certificate. The existing PDF font supports English characters only.
-- [ ] Draw with mouse and touch; use backgrounds, all tools, undo/redo, clear, image export, fullscreen and diagram board. Navigate immediately after drawing and verify the pending in-app save completed.
-- [ ] With teacher and student sessions open, update/watch the teacher board and verify realtime updates and read-only learner controls.
-- [ ] Post/reply/delete comments, test the rate-limit response and failed deletion; confirm drafts survive failures.
-- [ ] Create/edit/publish/unpublish courses and lessons; reorder lessons; upload PDFs and creator files. Verify drafts are hidden from learners and signed files open.
-- [ ] Verify student/teacher/admin database policies in the separate Supabase test project; confirm admin category switching, record updates, role edits and portal locking.
-- [ ] Visit the Vercel preview, direct lesson URLs and a nonexistent course URL; confirm no unexpected browser exceptions or deployment errors.
+- [ ] Search titles and lessons, clear search, switch categories, and open a course from a card and a direct URL.
+- [ ] Toggle themes, reload, and change the theme in another tab; check both drawing boards.
+- [ ] Check 320px, 390px, tablet and desktop layouts with a long account email; use keyboard Tab and lesson-tab arrow/Home/End keys.
+- [ ] Sign up, log in/out, and switch accounts. Verify a second student cannot see the first student’s notes, progress, bookmarks, scores, or private boards. Email verification is not implemented.
+- [ ] Switch lessons quickly under network throttling. Save/delete notes and simulate API failures; drafts must remain available and retry must succeed.
+- [ ] Play a real YouTube lesson to completion; verify progress, Previous/Next, Play All, saved last lesson and timestamp seeking.
+- [ ] Answer quizzes, retry failed score saves, download answer keys and certificates, and reload to verify saved results.
+- [ ] Draw with mouse and touch, use all tools and undo/redo, export images, enter fullscreen, and navigate immediately after drawing. Reopen the lesson to verify the pending save completed.
+- [ ] With teacher and student sessions open, edit the teacher board and verify updates within a few seconds and read-only student controls.
+- [ ] Post/reply/delete comments, trigger the rate-limit message and a failed request, and verify drafts survive failures.
+- [ ] Create/edit/publish/unpublish/delete courses and lessons, reorder lessons, upload PDFs and creator files, and verify draft files remain inaccessible to other users.
+- [ ] Verify teacher/admin permissions and portal locking, including a separate student session making a forbidden operation.
+- [ ] Visit the public HTTPS domain from cellular data. Test login, upload/download, direct course URLs and a nonexistent URL. Check the browser console and server log.
+- [ ] Restart Windows, sign in, and verify automatic app startup and tunnel reconnection. Stop the app, back up, and test recovery into a separate data directory.
 
 ## Remaining practical limits
 
-No live database was changed or hosting deployment performed. Authenticated Supabase E2E requires the separately configured test project described in README.md; fake-database tests do not prove that the deployed policies, storage buckets, email delivery, or realtime publication are configured correctly. Actual YouTube playback and email confirmation require the manual checks above.
+No public deployment or old-data migration was performed. The Windows sign-in task starts the app after that user logs in; it is not a pre-login Windows service. The PC must remain awake and connected for the site to respond. See `../DEPLOYMENT.md` for exact installation, startup, recovery and tunnel steps.
 
-Board saves flush on in-app navigation; abrupt tab/browser shutdown can still interrupt a pending remote request. The current lesson reorder uses two database writes with best-effort rollback, not an atomic SQL transaction; concurrent administrators should avoid simultaneous reordering. Signed file links last one hour; reload the classroom or creator list if a long-open session's link expires. Certificate and quiz PDFs retain the existing font character limitations. The TypeScript command checks the existing security boundary, not all JavaScript components.
+This backend is intended for one persistent Node.js server. Do not place its database on an ephemeral serverless filesystem or run it as a horizontally scaled service. Node’s built-in SQLite API has version-dependent stability; use the documented Node 24 LTS release and test upgrades. There is no email delivery, email verification, or self-service forgotten-password flow; the account recovery CLI is for the operator after verifying the person’s identity.
 
-These limitations should be accounted for during preview QA before promoting the app to production. Deployment steps and required environment variables are in `DEPLOYMENT.md`.
+Board saves flush on in-app navigation; abrupt browser shutdown can still interrupt a pending request. The existing lesson reorder uses two writes with best-effort rollback, so concurrent administrators should avoid simultaneous reordering. Certificate and quiz PDFs retain the existing English-font limitations. Public course pages use a 60-second revalidation interval, so content changes can take a refresh/revalidation cycle to appear. File URLs check current permissions at download time and do not expire like the old signed links. The TypeScript command checks the existing security boundary, not every JavaScript component.
 
 The installed Next.js development server generated the root `AGENTS.md` with its version-specific documentation guidance; that generated file is retained.

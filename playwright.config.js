@@ -1,58 +1,23 @@
-const { loadEnvConfig } = require("@next/env");
 const { defineConfig } = require("@playwright/test");
+const { mkdtempSync } = require("node:fs");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
 
-loadEnvConfig(process.cwd(), true);
-
-const testProjectRef = process.env.E2E_TEST_PROJECT_REF?.trim();
-const liveProjectRef = process.env.E2E_LIVE_PROJECT_REF?.trim();
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-const adminEmail = process.env.E2E_ADMIN_EMAIL?.trim();
-const adminPassword = process.env.E2E_ADMIN_PASSWORD;
-const baseURL = process.env.E2E_BASE_URL?.trim() || "http://127.0.0.1:3000";
-
-if (!testProjectRef || !liveProjectRef || !supabaseUrl || !supabaseAnonKey || !adminEmail || !adminPassword) {
-  throw new Error(
-    "Browser tests need E2E_TEST_PROJECT_REF, E2E_LIVE_PROJECT_REF, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, E2E_ADMIN_EMAIL, and E2E_ADMIN_PASSWORD in .env.local."
-  );
-}
-
-if (testProjectRef === liveProjectRef) {
-  throw new Error("The browser test project must be different from the live Supabase project.");
-}
-
-const databaseHost = new URL(supabaseUrl).hostname;
-if (databaseHost !== `${testProjectRef}.supabase.co`) {
-  throw new Error(
-    "E2E_TEST_PROJECT_REF must match NEXT_PUBLIC_SUPABASE_URL. Use a separate test project, never the live project."
-  );
-}
-
-const target = new URL(baseURL);
-if (!["localhost", "127.0.0.1"].includes(target.hostname)) {
-  throw new Error("Browser tests only run against the local site. Do not point them at production.");
-}
-
+// E2E always owns an isolated local SQLite directory, never the real home-server data.
+const directory = mkdtempSync(join(tmpdir(), "mana-e2e-"));
+process.env.E2E_DATA_DIR = directory;
+process.env.E2E_ADMIN_EMAIL = "test-admin@example.com";
+process.env.E2E_ADMIN_PASSWORD = "TestAdminPassword123!";
 module.exports = defineConfig({
   testDir: "./tests/e2e",
-  fullyParallel: false,
-  forbidOnly: Boolean(process.env.CI),
-  retries: 0,
-  workers: 1,
-  reporter: "list",
-  timeout: 180_000,
-  expect: { timeout: 15_000 },
-  use: {
-    baseURL,
-    browserName: "chromium",
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-    viewport: { width: 1280, height: 800 },
-  },
+  globalSetup: require.resolve("./tests/e2e/setup.cjs"),
+  globalTeardown: require.resolve("./tests/e2e/teardown.cjs"),
+  fullyParallel: false, workers: 1, retries: 0, forbidOnly: Boolean(process.env.CI),
+  timeout: 180000, expect: { timeout: 15000 }, reporter: "list",
+  use: { baseURL: "http://127.0.0.1:3200", browserName: "chromium", viewport: { width: 1280, height: 800 }, trace: "retain-on-failure", screenshot: "only-on-failure" },
   webServer: {
-    command: `npm run dev -- --hostname ${target.hostname} --port ${target.port || "3000"}`,
-    url: baseURL,
-    reuseExistingServer: false,
-    timeout: 120_000,
+    command: "npm run dev -- --hostname 127.0.0.1 --port 3200",
+    url: "http://127.0.0.1:3200", reuseExistingServer: false, timeout: 120000,
+    env: { DATA_DIR: directory, APP_ORIGIN: "http://127.0.0.1:3200", NEXT_PUBLIC_LOCAL_ONLY: "0", ADMIN_TEMP_ACCESS_KEY: "local-e2e-portal-key-not-for-production" },
   },
 });

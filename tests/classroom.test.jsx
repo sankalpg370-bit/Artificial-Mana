@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { makeFake, state } from "./fake-supabase.js";
+import { makeFake, state } from "./fake-backend.js";
 
-vi.mock("../lib/supabase", async () => {
-  const { state } = await import("./fake-supabase.js");
-  return { get supabase() { return state.current; } };
+vi.mock("../lib/backend", async () => {
+  const { state } = await import("./fake-backend.js");
+  return { get backend() { return state.current; } };
 });
 // The notes editor and the boards have their own tests. Here we test the lesson page logic.
 vi.mock("../app/course/[slug]/Notes", () => ({ default: ({ notes }) => <div data-testid="loaded-notes">{notes.map((note) => <span key={note.id}>{note.content}</span>)}</div>, fmt: (s) => String(s) }));

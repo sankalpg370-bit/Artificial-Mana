@@ -1,16 +1,16 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { backend } from "../lib/backend";
 
 export default function AuthButton() {
   const [user, setUser] = useState(null);
   const [message, setMessage] = useState("");
   useEffect(() => {
-    if (!supabase) return;
+    if (!backend) return;
     let active = true;
     let changed = false;
-    supabase.auth.getSession()
+    backend.auth.getSession()
       .then(({ data, error }) => {
         if (!active || changed) return;
         if (error) throw error;
@@ -23,17 +23,17 @@ export default function AuthButton() {
           setMessage("Sign-in status is unavailable. Try refreshing the page.");
         }
       });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { changed = true; if (active) { setUser(s?.user ?? null); setMessage(""); } });
+    const { data: sub } = backend.auth.onAuthStateChange((_e, s) => { changed = true; if (active) { setUser(s?.user ?? null); setMessage(""); } });
     return () => {
       active = false;
       sub.subscription.unsubscribe();
     };
   }, []);
-  if (!supabase) return null;
+  if (!backend) return null;
   async function logout() {
     setMessage("");
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await backend.auth.signOut();
       if (error) throw error;
     } catch (error) {
       console.error("Unable to sign out.", error);

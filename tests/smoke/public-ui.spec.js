@@ -81,3 +81,17 @@ test("unconfigured sign-in fails gracefully", async ({ page }) => {
   await page.getByRole("button", { name: "Log in", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Sign-in is temporarily unavailable");
 });
+
+
+test("diagram board loads the patched dependencies and follows the app theme", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/course/intro-to-ai");
+  await page.getByRole("tab", { name: "Boards", exact: true }).click();
+  await page.getByRole("button", { name: "Open diagram board" }).click();
+  await expect(page.locator(".excalidraw")).toBeVisible();
+  await expect(page.locator(".excalidraw")).toHaveClass(/theme--dark/);
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await expect(page.locator(".excalidraw")).not.toHaveClass(/theme--dark/);
+  expect(errors).toEqual([]);
+});

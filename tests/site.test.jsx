@@ -15,9 +15,9 @@ describe("site address", () => {
 });
 
 describe("privacy page", () => {
-  it("says that administrators can read account data, and mentions analytics", () => {
+  it("says that administrators can read account data, and describes local storage", () => {
     render(<Privacy />);
     expect(screen.getByText(/Site administrators can read them/)).toBeInTheDocument();
-    expect(screen.getByText(/Vercel Analytics/)).toBeInTheDocument();
+    expect(screen.getByText(/site operator/)).toBeInTheDocument();
   });
 });

@@ -71,7 +71,7 @@ export async function POST(request) {
   const origin = request.headers.get("origin");
   if (origin) {
     try {
-      if (new URL(origin).origin !== new URL(request.url).origin) {
+      if (new URL(origin).origin !== new URL(process.env.APP_ORIGIN || request.url).origin) {
         return jsonResponse({ error: "This request is not allowed." }, 403);
       }
     } catch {

@@ -7,14 +7,13 @@
     "noEmit": true,
     "skipLibCheck": true,
     "target": "ES2022",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "app/api/admin-access/route.js",
     "lib/admin-access.js",
-    "lib/courses.js",
-    "lib/supabase-config.js",
-    "lib/supabase.js",
     "proxy.js"
   ]
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabase";
+import { backend } from "../../../lib/backend";
 
 const QUESTIONS_PER_BATCH = 10;
 
@@ -24,8 +24,8 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
     setVisibleCount(QUESTIONS_PER_BATCH);
     setMessage("");
     setSaveFailed(false);
-    if (supabase && user) {
-      supabase.from("quiz_results").select("score,total").eq("user_id", user.id)
+    if (backend && user) {
+      backend.from("quiz_results").select("score,total").eq("user_id", user.id)
         .eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle()
         .then(({ data, error }) => {
           if (!active) return;
@@ -67,8 +67,8 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
     setSaving(true);
     setSaveFailed(false);
     try {
-      if (supabase && user) {
-        const { error } = await supabase.from("quiz_results").upsert(
+      if (backend && user) {
+        const { error } = await backend.from("quiz_results").upsert(
           { user_id: user.id, course_slug: slug, lesson_id: lessonId, ...result },
           { onConflict: "user_id,course_slug,lesson_id" }
         );

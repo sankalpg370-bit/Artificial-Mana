@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { backend } from "../lib/backend";
 import Cover from "./Cover";
 
 export default function MyList({ courses }) {
@@ -10,16 +10,16 @@ export default function MyList({ courses }) {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!supabase) return;
+    if (!backend) return;
     let active = true;
     let changed = false;
-    supabase.auth.getSession().then(({ data, error }) => {
+    backend.auth.getSession().then(({ data, error }) => {
       if (active && !changed) {
         if (error) throw error;
         setUser(data.session?.user ?? null);
       }
     }).catch(() => { if (active) setMessage("Your saved courses could not be loaded. Please refresh."); });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { changed = true; if (active) setUser(s?.user ?? null); });
+    const { data: sub } = backend.auth.onAuthStateChange((_e, s) => { changed = true; if (active) setUser(s?.user ?? null); });
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
 
@@ -27,9 +27,9 @@ export default function MyList({ courses }) {
     let active = true;
     const m = {};
     setMessage("");
-    if (supabase && user) {
+    if (backend && user) {
       setStates({});
-      supabase.from("course_state").select("course_slug,bookmarked,last_lesson").eq("user_id", user.id).then(({ data, error }) => {
+      backend.from("course_state").select("course_slug,bookmarked,last_lesson").eq("user_id", user.id).then(({ data, error }) => {
         if (!active) return;
         if (error) {
           console.error("Unable to load your saved courses.", error);

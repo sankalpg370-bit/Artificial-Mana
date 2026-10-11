@@ -1,122 +1,63 @@
 # Artificial Mana
 
-A learning website for artificial intelligence. It uses video lessons.
+Artificial Mana is a Next.js learning website with video lessons, saved progress, rich notes, quizzes, certificates, drawing boards, teacher boards, comments, and a creator/admin workspace.
 
-## Run on your computer
-1. Install Node.js (LTS version, 20.9 or newer).
-2. Run `npm install`.
-3. Run `npm run dev`.
-4. Open http://localhost:3000.
+The app now runs its backend on your own computer: a local SQLite database stores accounts and learning records, and local folders store uploaded files. Supabase is no longer a dependency. The intended public deployment is a Windows PC running the application, reached through a Cloudflare Tunnel. See [the Windows deployment guide](DEPLOYMENT.md) for the complete setup.
 
-## Add videos
-Open `data/courses.js`. Add a lesson. Write its title and its YouTube ID.
+## Start locally on Windows
 
-## Set up accounts, notes, quizzes, boards, and comments
-1. Make a free project at supabase.com.
-2. In the SQL Editor, paste the whole file `supabase-all.sql`. Click Run. Do this one time only.
-3. Copy `.env.local.example` to `.env.local`.
-4. Add your Supabase URL and anon key to `.env.local`.
-5. Stop the site. Run `npm run dev` again.
-(The same SQL is also split in the `database-steps` folder. You do not need those files.)
+Install [Node.js 24 LTS](https://nodejs.org/en/download), copy the project to `C:\ArtificialMana`, and open PowerShell:
 
-## Add a PDF to a lesson
-1. Put the PDF file in `public/pdfs`.
-2. In `data/courses.js`, add `pdf: "/pdfs/name.pdf"` to the lesson.
+```powershell
+Set-Location C:\ArtificialMana
+npm.cmd ci
+Copy-Item .env.local.example .env.local
+New-Item -ItemType Directory -Force C:\ArtificialManaData
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+notepad .env.local
+```
 
-## Put the site online
-See `DEPLOYMENT.md` for the current Vercel setup, environment variables, validation, and rollback steps.
+Set `DATA_DIR=C:/ArtificialManaData`, paste the generated value into `ADMIN_TEMP_ACCESS_KEY`, and keep both URL variables at `http://localhost:3000` for this local test. Leave `NEXT_PUBLIC_LOCAL_ONLY=0`. The data directory must be writable by the Windows account running the server; use local disk outside the source folder and any synced folder.
 
-## Important
-Environment files are ignored by Git. Keep real credentials out of source control; `.env.local.example` contains placeholders only.
+```powershell
+npm.cmd run admin:create
+npm.cmd run dev -- --hostname 127.0.0.1
+```
 
-## Quizzes, search, and categories
-Add a `quiz` list to a lesson in `data/courses.js`. Add a `category` to a course. The home page makes a search box and category buttons by itself.
+The admin command prompts for an email and hidden password of at least 10 characters. It creates a new administrator directly in your local database. Use an email that has not already registered; the command intentionally refuses to promote an existing public signup.
 
-## About and Privacy pages
-Open `app/about/page.js` and `app/privacy/page.js`. Replace the text in [square brackets]. Ask a legal expert to check the privacy page.
+Open [localhost:3000](http://localhost:3000), sign in, and visit `/management`. Enter the separate portal key to reach the admin workspace. This key opens the portal; the account's server-checked role grants data permissions. Keep the key server-only. Removing it disables entry through the management gate.
 
-## Whiteboard
-Each lesson has a whiteboard under the video. It has a blackboard, a whiteboard, and grid paper. Tools: pen, marker, highlighter, line, box, circle, text, and eraser. The student can undo, redo, and save the board as an image.
+The first database initialization seeds the sample courses once. Later changes to `data/courses.js` do not overwrite live courses. Manage live content through the admin workspace. Deleting every course leaves an empty catalog.
 
-## Diagram board
-Each lesson also has a diagram board (Excalidraw, MIT license). See `CREDITS.md`.
+## Content and account management
 
-## Teachers and the admin page
-1. Run `supabase-step8.sql` in the Supabase SQL Editor.
-2. Sign up on the site with your email.
-3. In the SQL Editor, run the last line of `supabase-step8.sql`. Change the email first. Remove the `--` at the start.
-4. Log in with that account and open `/management`.
-5. In Admin, make a course, add lessons (YouTube link, PDF, quiz), and press **Publish**. You can edit a course or a lesson later with the **Edit** buttons.
+- **Courses:** Create courses and lessons in Admin, add YouTube IDs or links, optional PDFs and quizzes, then publish. Public course pages refresh through the existing cache, usually after about a minute.
+- **Creator Studio:** Teacher/admin accounts can add links, assignments, notes, and files. Learners see materials marked visible on published courses. Uploads support allowed document, archive, text, and image formats up to 25 MiB. HTML/SVG are excluded; file validation does not scan content for malware.
+- **Learning:** Signed-in students save notes, progress, bookmarks, quiz results, and private boards to the local server. Teacher-board viewers receive updates by polling roughly every 1.5 seconds while the page is visible. Certificates require all lessons complete and every quiz at least 60%; the PDF currently supports English letters.
+- **Access:** Students cannot read another student's private records. Teachers manage teaching content and comments. Administrators can inspect and manage all records and account roles in **Full site control**. Public registration creates student accounts only.
+- **Password recovery:** Run `npm.cmd run account:reset` on the server and enter the user's email and new password after verifying their identity. This invalidates their existing sessions. Email verification, SMTP, and emailed password-reset links are not implemented; registration email is an unverified account identifier.
+- **Registration:** Set `DISABLE_SIGNUP=1` and restart to close new registrations while retaining existing account login.
 
-If Supabase has no published course, the site shows the sample course from `data/courses.js`.
+Existing Supabase accounts, password hashes, files, and learning records have **not** been imported. Preserve any old exports separately; users need new local accounts unless a separate data migration is implemented. The old `supabase-all.sql`, `database-steps/`, and Supabase setup materials are historical and are not used by this server.
 
-## Temporary admin access
-The management page has an extra temporary key gate. It does not replace Supabase login or the teacher/admin role.
-1. Make a strong key on your computer with `openssl rand -base64 32`.
-2. For local development, copy `.env.local.example` to `.env.local`, set `ADMIN_TEMP_ACCESS_KEY` to the generated key, and restart the dev server.
-3. For a deployed site, add `ADMIN_TEMP_ACCESS_KEY` as a server-only environment variable in Vercel Project Settings. Select the environment you use (Production, Preview, or both), then redeploy.
-4. Open `/management`, enter the key, then sign in with an existing teacher or admin account.
-5. The access cookie expires after 2 hours. Use **Lock temporary admin access** to end it sooner.
-6. Remove `ADMIN_TEMP_ACCESS_KEY` from local settings and Vercel when your review is done.
+## Verify changes
 
-Do not put the key in a `NEXT_PUBLIC_` variable or in Git. The key only opens the portal page.
-Supabase login, the admin role, and database policies still control admin data and actions.
-This is a temporary UI gate, not a second factor for an admin who is already signed in.
+```powershell
+npm.cmd run check
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
+npm.cmd run test:smoke
+```
 
-## Creator Studio
-Run `database-steps/supabase-step11.sql` once in the Supabase SQL Editor (or use the updated `supabase-all.sql` for a new setup). Sign in with a teacher or admin account, open **Admin**, then choose **Open Creator Studio**. The unlisted `/creator-studio` page lets creators add links, assignments, notes, and files to a course or lesson. Only materials marked **Visible to learners** appear on published courses.
+Run the browser suites sequentially, with no development server already using ports 3100/3200. `check` runs lint, the admin security-boundary typecheck, unit tests, and a production build. The unit suite includes real temporary SQLite databases as well as component mocks. Full browser tests provision a temporary local database and test administrator automatically; they never target the configured production database. The smoke suite uses browser-only demo mode. YouTube completion is simulated in automation, so test actual playback manually before launch.
 
-## Privacy and row access
-Run `database-steps/supabase-step12.sql` after steps 5-11 to enforce learner/creator access rules, then run `database-steps/supabase-step13.sql` to enable full admin oversight. Teacher/admin accounts can manage courses and lessons; only admins can use **Full site control** on `/admin` to inspect and edit every account's private progress, notes, bookmarks, quiz results, and learner boards; manage user roles; moderate public comments and lesson boards; and edit or remove creator drafts and published materials. Admins also have access to all private creator uploads. Creator file paths are restricted to the owning creator, including when materials are published. Learners see only published course content and public comments/teacher boards, not one another's private data. The combined `supabase-all.sql` includes these policies for a fresh setup.
+The migration passed 104 unit tests, 2 complete browser tests, 7 smoke tests, lint, the security-boundary typecheck, and the production build on the audit machine. GitHub Actions runs the release checks. See [the audit report](audit/AUDIT.md), [corrected source blocks](audit/corrected-files.md), and [deployment QA](DEPLOYMENT.md#pre-launch-qa).
 
-The Full site control panel paginates records in batches of 100. Editing data there is permanent. Admin role changes do not create or delete Supabase Auth accounts; account lifecycle operations must be done in Supabase Authentication.
+## Operate the public site
 
-## Certificates
-A student gets a certificate PDF after all lessons are done and every quiz has a score of 60% or more. The certificate prints English letters only.
+Follow [DEPLOYMENT.md](DEPLOYMENT.md) for HTTPS domain routing, Windows sign-in startup, backups, restoration, and upgrades. The application, SQLite database, and uploads live on the PC; the tunnel forwards visitor traffic. Keep the PC powered, awake, connected, and signed in after reboot for the supplied startup configuration.
 
-## Rich notes
-Students can use bold, italic, headings, lists, quotes, and code in notes. Old plain-text notes still show. The site removes any other formats, so notes stay safe.
+Use one running application instance with this local database. This configuration requires persistent local disk and is not a Vercel/Netlify serverless deployment. The Windows installation and public tunnel must still be set up and verified on the actual host.
 
-## Teacher board
-A teacher draws on the **teacher board** of a lesson. Every student can open it and watch. It updates by itself in about 1 to 2 seconds. Run `supabase-step9.sql` first. Students cannot draw on it.
-
-## Questions and comments
-Logged-in students can ask questions and reply under each lesson. Teachers can delete any comment and show a Teacher badge. A user can post 5 comments in one minute. Run `supabase-step10.sql` first.
-
-## Tests
-Run `npm test` to run the automatic tests. They use a fake database.
-They check pages, progress, quizzes, notes, uploads, privacy, and account access.
-Run `npm run lint` for the Next.js ESLint rules and `npm run typecheck` to check the temporary-admin security boundary.
-
-## Browser tests
-Use a separate Supabase test project. Never use your live project.
-1. Run `supabase-all.sql` once in the test project's SQL Editor.
-2. Copy `.env.local.example` to `.env.local`.
-3. Set the Supabase URL and anon key to the test project's values.
-4. Set `E2E_TEST_PROJECT_REF` to the test project's reference.
-5. Set `E2E_LIVE_PROJECT_REF` to the live project's reference.
-6. Turn off email confirmation in the test project only.
-7. Run `npm run dev`. Sign up with the test admin email.
-8. Give that account the admin role using `database-steps/supabase-step8.sql`.
-9. Set `E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` to the test admin's details.
-10. Run `npx playwright install chromium` once. Then run `npm run test:e2e`.
-The browser test creates a student, a published course, a comment, and an uploaded file.
-These records stay in the test project. Use a test project that contains no real user data.
-The test simulates the YouTube video-ended event. It does not play the full video.
-GitHub Actions runs `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` on pushes and pull requests.
-
-## File types for creator uploads (step 14)
-Run `database-steps/supabase-step14.sql` once. Creators can upload PDF, Word, PowerPoint, Excel, CSV, text, Markdown, EPUB, ZIP, and images (PNG, JPG, WEBP, GIF) up to 25 MB. The page checks file extensions and declared MIME types; Supabase limits the declared MIME types and size it accepts. Neither check scans file contents, so do not treat it as malware detection. HTML and SVG extensions are not accepted.
-
-## Site address
-The main address is `https://www.artificialmana.com`. It is set in `lib/site.js`. To change it, set `NEXT_PUBLIC_SITE_URL` in Vercel. In Supabase, set the Site URL to the same address, and add both the www and the non-www address under Redirect URLs.
-
-## Design
-The colors are variables at the top of `app/globals.css`. The default theme is dark. The button in the header switches to light and the site remembers the choice. The course cards show a cover picture that the site draws itself, so the home page does not load pictures from YouTube.
-
-
-## Frontend audit and release checks
-
-Run `npm run check` for lint, security typecheck, unit tests and production build. Run `npm run test:smoke` for credential-free browser checks (install Chromium first with `npx playwright install chromium`). The smoke suite runs an isolated local server on port 3100 with Supabase disabled. Keep using `npm run test:e2e` with a separate Supabase project for authenticated learning flows.
-
-See `audit/AUDIT.md` for the fixes, remaining practical limits and manual release QA checklist. The corrected source code blocks are in `audit/corrected-files.md`.
+The default theme is dark; the header switch remembers the user's choice. Colors live in `app/globals.css`. Excalidraw and other attribution are listed in [CREDITS.md](CREDITS.md). Keep `.env.local`, database files, uploads, logs, and backups out of Git.
