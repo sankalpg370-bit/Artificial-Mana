@@ -204,9 +204,10 @@ svg .s{font-size:13px;fill:var(--muted)}
 <h3>Temporary admin access key</h3>
 <ol>
 <li>Make a strong key on your computer with <code>openssl rand -base64 32</code>.</li>
-<li>Set it as <code>ADMIN_TEMP_ACCESS_KEY</code> in the ignored <code>.env.local</code> file.</li>
-<li>Open <code>/admin/access</code>. Enter the key.</li>
-<li>Sign in with an account that already has the admin role.</li>
+<li>For local development, copy <code>.env.local.example</code> to <code>.env.local</code>, set <code>ADMIN_TEMP_ACCESS_KEY</code> to the key, and restart the dev server.</li>
+<li>For a deployed site, add <code>ADMIN_TEMP_ACCESS_KEY</code> as a server-only variable in Vercel Project Settings for the needed environment, then redeploy.</li>
+<li>Open <code>/management</code> and enter the key.</li>
+<li>Sign in with an account that already has a teacher or admin role.</li>
 <li>The access cookie expires after 2 hours. Use <strong>Lock temporary admin access</strong> to end it sooner.</li>
 <li>Remove <code>ADMIN_TEMP_ACCESS_KEY</code> when your review is done.</li>
 </ol>
@@ -294,7 +295,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <tr><td><code>npm install</code> or build fails</td><td>Run <code>node -v</code>. You need version 20.9 or newer.</td></tr>
 <tr><td>SQL shows "already exists"</td><td>You ran the file twice. This is safe to ignore.</td></tr>
 <tr><td>No email after sign-up</td><td>Check the spam folder. For tests, turn off email confirmation in Supabase.</td></tr>
-<tr><td>The Admin button does not show</td><td>Run the role line. Log out. Log in again.</td></tr>
+<tr><td>"Temporary admin access is not enabled"</td><td>Set <code>ADMIN_TEMP_ACCESS_KEY</code> in <code>.env.local</code> for local work or in Vercel for the deployed environment, then restart or redeploy.</td></tr>
 <tr><td>A new course does not show</td><td>Wait 1 minute. Make sure it is published and has one lesson or more.</td></tr>
 <tr><td>The teacher board does not update</td><td>Make sure <code>supabase-all.sql</code> ran with no errors. Open the board again.</td></tr>
 <tr><td>No certificate button</td><td>Finish all lessons. Pass every quiz with 60% or more.</td></tr>
@@ -330,7 +331,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <tr><td>Supabase keys</td><td><code>.env.local</code> on your computer. Environment Variables in Vercel.</td></tr>
 <tr><td>Tests</td><td>The <code>tests</code> folder. Run <code>npm test</code>.</td></tr>
 <tr><td>Search-engine files</td><td><code>app/sitemap.js</code>, <code>app/robots.js</code></td></tr>
-<tr><td>Temporary admin access</td><td><code>app/admin/access/page.js</code>, <code>app/api/admin-access/route.js</code></td></tr>
+<tr><td>Management access</td><td><code>app/management/page.js</code>, <code>app/api/admin-access/route.js</code></td></tr>
 <tr><td>List of changes</td><td><code>CHANGELOG.md</code></td></tr>
 </table>
 </div>

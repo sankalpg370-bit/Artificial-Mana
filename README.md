@@ -45,17 +45,17 @@ Each lesson also has a diagram board (Excalidraw, MIT license). See `CREDITS.md`
 1. Run `supabase-step8.sql` in the Supabase SQL Editor.
 2. Sign up on the site with your email.
 3. In the SQL Editor, run the last line of `supabase-step8.sql`. Change the email first. Remove the `--` at the start.
-4. Log in again. An **Admin** button shows in the top bar.
+4. Log in with that account and open `/management`.
 5. In Admin, make a course, add lessons (YouTube link, PDF, quiz), and press **Publish**. You can edit a course or a lesson later with the **Edit** buttons.
 
 If Supabase has no published course, the site shows the sample course from `data/courses.js`.
 
 ## Temporary admin access
-The admin page has an extra temporary key gate. It does not replace Supabase login or the admin role.
+The management page has an extra temporary key gate. It does not replace Supabase login or the teacher/admin role.
 1. Make a strong key on your computer with `openssl rand -base64 32`.
-2. Set it as `ADMIN_TEMP_ACCESS_KEY` in your ignored `.env.local` file for local checks.
-3. Add the same server-only setting to Vercel only if you need the gate on a deployed site.
-4. Open `/admin/access`, enter the key, then sign in with an existing admin account.
+2. For local development, copy `.env.local.example` to `.env.local`, set `ADMIN_TEMP_ACCESS_KEY` to the generated key, and restart the dev server.
+3. For a deployed site, add `ADMIN_TEMP_ACCESS_KEY` as a server-only environment variable in Vercel Project Settings. Select the environment you use (Production, Preview, or both), then redeploy.
+4. Open `/management`, enter the key, then sign in with an existing teacher or admin account.
 5. The access cookie expires after 2 hours. Use **Lock temporary admin access** to end it sooner.
 6. Remove `ADMIN_TEMP_ACCESS_KEY` from local settings and Vercel when your review is done.
 
