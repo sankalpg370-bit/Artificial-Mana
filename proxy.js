@@ -11,7 +11,7 @@ export function proxy(request) {
     return NextResponse.next();
   }
 
-  const accessUrl = new URL("/admin/access", request.url);
+  const accessUrl = new URL("/management", request.url);
   return NextResponse.redirect(accessUrl);
 }
 

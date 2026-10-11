@@ -74,7 +74,7 @@ describe("temporary admin access", () => {
     process.env.ADMIN_TEMP_ACCESS_KEY = "temporary-test-key";
     const locked = proxy(new NextRequest("http://localhost/admin"));
     expect(locked.status).toBe(307);
-    expect(locked.headers.get("location")).toBe("http://localhost/admin/access");
+    expect(locked.headers.get("location")).toBe("http://localhost/management");
 
     expect(proxy(new NextRequest("http://localhost/admin/access")).status).toBe(200);
 

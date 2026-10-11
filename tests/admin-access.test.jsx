@@ -10,6 +10,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
 import Admin from "../app/admin/page";
+import AuthButton from "../app/AuthButton";
 
 afterEach(() => {
   state.current = null;
@@ -28,6 +29,19 @@ describe("Admin access", () => {
     expect(screen.queryByText("New course")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open Creator Studio" })).not.toBeInTheDocument();
     expect(screen.queryByText("Full site control")).not.toBeInTheDocument();
+  });
+
+  it("keeps management access out of regular site navigation", async () => {
+    state.current = makeFake({
+      user: { id: "teacher-1", email: "teacher@example.com" },
+      rows: { profiles: [{ user_id: "teacher-1", role: "teacher" }] },
+    });
+
+    render(<AuthButton />);
+
+    expect(await screen.findByText("teacher@example.com")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Management system" })).not.toBeInTheDocument();
   });
 
   it("shows full data controls only to an admin", async () => {

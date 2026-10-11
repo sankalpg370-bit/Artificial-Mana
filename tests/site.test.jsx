@@ -10,7 +10,7 @@ describe("site address", () => {
     expect(urls[0]).toBe("https://www.artificialmana.com");
     expect(urls.every((u) => u.startsWith("https://www.artificialmana.com"))).toBe(true);
     expect(robots().sitemap).toBe("https://www.artificialmana.com/sitemap.xml");
-    expect(robots().rules.disallow).toEqual(expect.arrayContaining(["/admin", "/login"]));
+    expect(robots().rules.disallow).toEqual(expect.arrayContaining(["/admin", "/login", "/management"]));
   });
 });
 
