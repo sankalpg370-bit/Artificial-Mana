@@ -108,7 +108,7 @@ test("visitor, student, and admin can complete the learning flow", async ({ brow
     const courseEditor = adminPage.locator(".panel").filter({ hasText: courseTitle });
     await expect(courseEditor.getByRole("heading", { name: new RegExp(courseTitle) })).toBeVisible();
     await courseEditor.getByPlaceholder("Lesson title").fill(lessonTitle);
-    await courseEditor.getByPlaceholder("YouTube link or ID").fill("aircAruvnKk");
+    await courseEditor.getByPlaceholder("Paste a YouTube link or video ID").fill("https://youtu.be/aircAruvnKk?si=shared");
     await courseEditor.getByRole("button", { name: "Add quiz question" }).click();
     await courseEditor.getByPlaceholder("Question 1").fill("What is two plus two?");
     await courseEditor.getByPlaceholder("Option 1").fill("Four");

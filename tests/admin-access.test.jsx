@@ -47,4 +47,30 @@ describe("Admin access", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Private notes" }));
     expect(await screen.findByText("id: note-1")).toBeInTheDocument();
   });
+
+  it("saves a pasted YouTube URL as the lesson video ID", async () => {
+    state.current = makeFake({
+      user: { id: "teacher-1" },
+      rows: {
+        profiles: [{ user_id: "teacher-1", role: "teacher" }],
+        courses: [{ slug: "test-course", title: "Test course", published: false }],
+      },
+    });
+
+    render(<Admin />);
+
+    fireEvent.change(await screen.findByPlaceholderText("Lesson title"), {
+      target: { value: "Test lesson" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Paste a YouTube link or video ID"), {
+      target: { value: "https://youtu.be/aircAruvnKk?si=shared" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add lesson", exact: true }));
+
+    await screen.findByText("Lesson added.");
+    expect(state.current.db.lessons[0]).toMatchObject({
+      title: "Test lesson",
+      youtube_id: "aircAruvnKk",
+    });
+  });
 });

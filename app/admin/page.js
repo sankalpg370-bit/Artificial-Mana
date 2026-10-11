@@ -4,13 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import AdminControlCenter from "./AdminControlCenter";
+import { getYouTubeVideoId } from "../../lib/youtube";
 
 const slugify = (t) => t.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-function ytId(v) {
-  const m = v.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/);
-  if (m) return m[1];
-  return /^[\w-]{11}$/.test(v.trim()) ? v.trim() : null;
-}
 const emptyQ = () => ({ q: "", options: ["", "", "", ""], answer: 0 });
 
 export default function Admin() {
@@ -118,7 +114,7 @@ function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
   const setQ = (i, patch) => setQuiz(quiz.map((q, j) => (j === i ? { ...q, ...patch } : q)));
 
   async function save() {
-    const id = ytId(link);
+    const id = getYouTubeVideoId(link);
     if (!title.trim() || !id) { setMsg("Write a title and a valid YouTube link."); return; }
     const cleanQuiz = [];
     for (const q of quiz) {
@@ -149,7 +145,7 @@ function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
   return (
     <div className="form">
       <input placeholder="Lesson title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <input placeholder="YouTube link or ID" value={link} onChange={(e) => setLink(e.target.value)} />
+      <input placeholder="Paste a YouTube link or video ID" value={link} onChange={(e) => setLink(e.target.value)} />
       <label className="muted">{edit && initial.pdf_url ? "Replace the PDF file" : "PDF file (optional)"} <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files[0] || null)} /></label>
       {edit && initial.pdf_url && (
         <label className="muted"><input type="checkbox" checked={removePdf} onChange={(e) => setRemovePdf(e.target.checked)} /> Remove the current PDF</label>
