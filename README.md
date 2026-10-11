@@ -24,7 +24,7 @@ Open `data/courses.js`. Add a lesson. Write its title and its YouTube ID.
 2. In `data/courses.js`, add `pdf: "/pdfs/name.pdf"` to the lesson.
 
 ## Put the site online
-See `artificialmana-guide.html` for the steps.
+See `DEPLOYMENT.md` for the current Vercel setup, environment variables, validation, and rollback steps.
 
 ## Important
 Environment files are ignored by Git. Keep real credentials out of source control; `.env.local.example` contains placeholders only.
@@ -113,3 +113,10 @@ The main address is `https://www.artificialmana.com`. It is set in `lib/site.js`
 
 ## Design
 The colors are variables at the top of `app/globals.css`. The default theme is dark. The button in the header switches to light and the site remembers the choice. The course cards show a cover picture that the site draws itself, so the home page does not load pictures from YouTube.
+
+
+## Frontend audit and release checks
+
+Run `npm run check` for lint, security typecheck, unit tests and production build. Run `npm run test:smoke` for credential-free browser checks (install Chromium first with `npx playwright install chromium`). The smoke suite runs an isolated local server on port 3100 with Supabase disabled. Keep using `npm run test:e2e` with a separate Supabase project for authenticated learning flows.
+
+See `audit/AUDIT.md` for the fixes, remaining practical limits and manual release QA checklist. The corrected source code blocks are in `audit/corrected-files.md`.

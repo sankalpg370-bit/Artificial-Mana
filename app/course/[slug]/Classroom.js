@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Quiz from "./Quiz";
 import Certificate from "./Certificate";
 import Comments from "./Comments";
@@ -10,11 +10,40 @@ import { safeHtml } from "../../../lib/richtext";
 import { supabase } from "../../../lib/supabase";
 
 export default function Classroom({ course }) {
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(!supabase);
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    let authChanged = false;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active || authChanged) return;
+      if (error) console.error("Unable to check the current session.", error);
+      setUser(data?.session?.user ?? null);
+      setAuthReady(true);
+    }).catch((error) => {
+      if (!active || authChanged) return;
+      console.error("Unable to check the current session.", error);
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => {
+      authChanged = true;
+      if (!active) return;
+      setUser(sess?.user ?? null);
+      setAuthReady(true);
+    });
+    return () => { active = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  if (!authReady) return <div className="wrap" role="status">Loading your classroom...</div>;
+  // Remount account-owned state on account/course changes so old requests cannot leak into a new session.
+  return <ClassroomContent key={`${course.slug}:${user?.id || "guest"}`} course={course} user={user} />;
+}
+
+function ClassroomContent({ course, user }) {
   const [index, setIndex] = useState(0);
   const [done, setDone] = useState([]);
   const [autoplay, setAutoplay] = useState(true);
-  const [user, setUser] = useState(null);
-  const [authReady, setAuthReady] = useState(!supabase);
   const [notes, setNotes] = useState([]);
   const [qtick, setQtick] = useState(0);
   const [quizOk, setQuizOk] = useState(false);
@@ -23,34 +52,19 @@ export default function Classroom({ course }) {
   const [tab, setTab] = useState("notes");
   const [creatorMaterials, setCreatorMaterials] = useState([]);
   const [materialsError, setMaterialsError] = useState("");
+  const [stateReady, setStateReady] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [videoError, setVideoError] = useState("");
   const cs = useRef({ bookmarked: false, last: null });
-  const loaded = useRef(false);
   const player = useRef(null);
+  const playerHost = useRef(null);
   const playerReady = useRef(false);
   const live = useRef({});
   const key = "progress:" + course.slug;
 
   useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) console.error("Unable to check the current session.", error);
-      setUser(data?.session?.user ?? null);
-      setAuthReady(true);
-    }).catch((error) => {
-      console.error("Unable to check the current session.", error);
-      setAuthReady(true);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => {
-      setUser(sess?.user ?? null);
-      setAuthReady(true);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!authReady) return;
     if (!supabase || !user) {
-      try { setDone(JSON.parse(localStorage.getItem(key)) || []); } catch (error) {
+      try { const saved = JSON.parse(localStorage.getItem(key)); setDone(Array.isArray(saved) ? saved : []); } catch (error) {
         console.error("Unable to load local lesson progress.", error);
         setDone([]);
       }
@@ -66,7 +80,7 @@ export default function Classroom({ course }) {
           setDone([]);
           return;
         }
-        setDone((data || []).map((row) => row.lesson_id));
+        setDone((current) => [...new Set([...current, ...(data || []).map((row) => row.lesson_id)])]);
       })
       .catch((error) => {
         if (!active) return;
@@ -74,7 +88,7 @@ export default function Classroom({ course }) {
         setDone([]);
       });
     return () => { active = false; };
-  }, [key, authReady, user, course.slug]);
+  }, [key, user, course.slug]);
 
   function markDone(id) {
     if (supabase && user) {
@@ -82,8 +96,8 @@ export default function Classroom({ course }) {
         { user_id: user.id, course_slug: course.slug, lesson_id: id },
         { onConflict: "user_id,course_slug,lesson_id" }
       ).then(({ error }) => {
-        if (error) console.error("Unable to save account lesson progress.", error);
-      }).catch((error) => console.error("Unable to save account lesson progress.", error));
+        if (error) { console.error("Unable to save account lesson progress.", error); setSaveError("Lesson progress could not be saved. Replay the lesson to retry."); }
+      }).catch(() => setSaveError("Lesson progress could not be saved. Replay the lesson to retry."));
     }
     setDone((d) => {
       if (d.includes(id)) return d;
@@ -91,6 +105,7 @@ export default function Classroom({ course }) {
       if (!supabase || !user) {
         try { localStorage.setItem(key, JSON.stringify(n)); } catch (error) {
           console.error("Unable to save local lesson progress.", error);
+          setSaveError("Your browser could not save lesson progress. Check your storage settings.");
         }
       }
       return n;
@@ -99,89 +114,132 @@ export default function Classroom({ course }) {
   live.current = { index, autoplay, markDone };
 
   useEffect(() => {
-    const videoId = course.lessons[index].youtubeId;
+    let active = true;
+    const host = playerHost.current;
+    let timeout;
+    let script;
+    const previous = window.onYouTubeIframeAPIReady;
     function create() {
-      if (player.current) {
-        if (playerReady.current) player.current.loadVideoById(videoId);
-        return;
-      }
-      player.current = new window.YT.Player("yt-player", {
-        videoId: course.lessons[live.current.index].youtubeId,
+      if (!active || player.current) return;
+      clearTimeout(timeout);
+      // YouTube replaces its target node. Recreate it after Strict Mode cleanup.
+      const target = document.createElement("div");
+      host.replaceChildren(target);
+      const initialVideoId = course.lessons[live.current.index].youtubeId;
+      player.current = new window.YT.Player(target, {
+        videoId: initialVideoId,
         width: "100%", height: "100%",
-        host: "https://www.youtube-nocookie.com", // fewer cookies before the student plays
+        host: "https://www.youtube-nocookie.com",
         events: {
           onReady: (event) => {
+            if (!active) return;
             playerReady.current = true;
-            const activeVideoId = course.lessons[live.current.index].youtubeId;
-            if (activeVideoId !== videoId) event.target.loadVideoById(activeVideoId);
+            const videoId = course.lessons[live.current.index].youtubeId;
+            if (videoId !== initialVideoId) event.target.loadVideoById(videoId);
           },
-          onStateChange: (e) => {
-            if (e.data !== 0) return; // 0 means the video ended
-            const s = live.current;
-            s.markDone(course.lessons[s.index].id);
-            if (s.autoplay && s.index < course.lessons.length - 1) setIndex(s.index + 1);
-          }
-        }
+          onError: () => { if (active) setVideoError("This video is unavailable. Try another lesson or reload the page."); },
+          onStateChange: (event) => {
+            if (!active || event.data !== 0) return;
+            const current = live.current;
+            const playingId = event.target?.getVideoData?.().video_id;
+            if (playingId && playingId !== course.lessons[current.index].youtubeId) return;
+            current.markDone(course.lessons[current.index].id);
+            if (current.autoplay && current.index < course.lessons.length - 1) setIndex(current.index + 1);
+          },
+        },
       });
     }
-    if (window.YT && window.YT.Player) create();
+    const ready = () => { if (previous) previous(); create(); };
+    const fail = () => { if (active) setVideoError("The video player could not load. Check your connection and reload the page."); };
+    if (window.YT?.Player) create();
     else {
-      const prev = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => { if (prev) prev(); create(); };
-      if (!document.getElementById("yt-api")) {
-        const s = document.createElement("script");
-        s.id = "yt-api"; s.src = "https://www.youtube.com/iframe_api";
-        document.body.appendChild(s);
+      window.onYouTubeIframeAPIReady = ready;
+      script = document.getElementById("yt-api");
+      if (!script) {
+        script = document.createElement("script");
+        script.id = "yt-api";
+        script.src = "https://www.youtube.com/iframe_api";
+        document.body.appendChild(script);
       }
+      script.addEventListener("error", fail);
+      timeout = setTimeout(fail, 15000);
     }
+    // Navigation and Strict Mode must release the iframe and its global callback.
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+      script?.removeEventListener("error", fail);
+      if (window.onYouTubeIframeAPIReady === ready) window.onYouTubeIframeAPIReady = previous;
+      playerReady.current = false;
+      player.current?.destroy();
+      player.current = null;
+      host?.replaceChildren();
+    };
+  }, [course]);
+
+  useEffect(() => {
+    setVideoError("");
+    if (playerReady.current) player.current?.loadVideoById(course.lessons[index].youtubeId);
   }, [index, course]);
 
   const lesson = course.lessons[index];
   const visibleMaterials = creatorMaterials.filter((material) => !material.lesson_id || material.lesson_id === lesson.id);
   const nkey = `notes:${course.slug}:${lesson.id}`;
 
+  const noteContext = useRef(nkey);
+  noteContext.current = nkey;
   useEffect(() => {
+    let active = true;
+    setNotes([]);
     if (supabase && user) {
-      setNotes([]);
       supabase.from("notes").select("id,seconds,content").eq("user_id", user.id).eq("course_slug", course.slug)
         .eq("lesson_id", lesson.id).order("seconds").then(({ data, error }) => {
-          if (error) {
-            console.error("Unable to load your saved notes.", error);
-            setNotes([]);
-            return;
-          }
-          setNotes(data || []);
-        });
+          if (error) throw error;
+          if (active) setNotes(data || []);
+        }).catch(() => { if (active) setSaveError("Your notes could not be loaded. Refresh to retry."); });
     } else {
-      try { setNotes(JSON.parse(localStorage.getItem(nkey)) || []); } catch (e) { setNotes([]); }
+      try {
+        const saved = JSON.parse(localStorage.getItem(nkey));
+        setNotes(Array.isArray(saved) ? saved : []);
+      } catch { setSaveError("Your browser could not load saved notes."); }
     }
-  }, [user, nkey]);
+    return () => { active = false; };
+  }, [user, nkey, course.slug, lesson.id]);
 
   function saveLocal(list) {
+    // Persist first: callers retain their drafts if storage is blocked or full.
+    localStorage.setItem(nkey, JSON.stringify(list));
     setNotes(list);
-    try { localStorage.setItem(nkey, JSON.stringify(list)); } catch (e) {}
   }
-  const getTime = () => Math.floor((player.current && player.current.getCurrentTime && player.current.getCurrentTime()) || 0);
+  const getTime = () => Math.floor(player.current?.getCurrentTime?.() || 0);
 
   async function addNote(content, seconds) {
+    const context = nkey;
     if (supabase && user) {
-      const { data } = await supabase.from("notes")
+      const { data, error } = await supabase.from("notes")
         .insert({ user_id: user.id, course_slug: course.slug, lesson_id: lesson.id, seconds, content })
         .select("id,seconds,content").single();
-      if (data) setNotes((n) => [...n, data].sort((a, b) => a.seconds - b.seconds));
+      if (error || !data) throw error || new Error("No saved note was returned.");
+      if (noteContext.current === context) setNotes((current) => [...current, data].sort((a, b) => a.seconds - b.seconds));
     } else {
-      saveLocal([...notes, { id: String(Date.now()), seconds, content }].sort((a, b) => a.seconds - b.seconds));
+      saveLocal([...notes, { id: crypto.randomUUID(), seconds, content }].sort((a, b) => a.seconds - b.seconds));
     }
   }
   async function deleteNote(id) {
-    if (supabase && user) await supabase.from("notes").delete().eq("user_id", user.id).eq("id", id);
-    if (supabase && user) setNotes((n) => n.filter((x) => x.id !== id));
-    else saveLocal(notes.filter((x) => x.id !== id));
+    const context = nkey;
+    if (supabase && user) {
+      const { error } = await supabase.from("notes").delete().eq("user_id", user.id).eq("id", id);
+      if (error) throw error;
+      if (noteContext.current === context) setNotes((current) => current.filter((note) => note.id !== id));
+    } else saveLocal(notes.filter((note) => note.id !== id));
   }
   useEffect(() => {
     if (!supabase || !user) { setTeacher(false); return; }
+    let active = true;
     supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
-      .then(({ data }) => setTeacher(!!data && (data.role === "teacher" || data.role === "admin")));
+      .then(({ data, error }) => { if (active) setTeacher(!error && !!data && (data.role === "teacher" || data.role === "admin")); })
+      .catch(() => { if (active) setTeacher(false); });
+    return () => { active = false; };
   }, [user]);
 
   useEffect(() => {
@@ -203,16 +261,17 @@ export default function Classroom({ course }) {
           setMaterialsError("Course materials are temporarily unavailable.");
           return;
         }
-        Promise.all((data || []).map(async (material) => {
+        Promise.allSettled((data || []).map(async (material) => {
           if (!material.storage_path) return material;
           const { data: file, error: fileError } = await supabase.storage
             .from("creator-materials").createSignedUrl(material.storage_path, 3600);
           if (fileError) throw fileError;
           return { ...material, signed_file_url: file.signedUrl };
-        })).then((materials) => {
+        })).then((results) => {
           if (!active) return;
-          setCreatorMaterials(materials);
-          setMaterialsError("");
+          // One inaccessible upload must not hide every other signed file.
+          setCreatorMaterials(results.map((result, index) => result.status === "fulfilled" ? result.value : data[index]));
+          setMaterialsError(results.some((result) => result.status === "rejected") ? "Some course files are temporarily unavailable." : "");
         }).catch((fileError) => {
           if (!active) return;
           console.error("Unable to create access links for creator materials.", fileError);
@@ -226,68 +285,78 @@ export default function Classroom({ course }) {
         setMaterialsError("Course materials are temporarily unavailable.");
       });
     return () => { active = false; };
-  }, [course.slug]);
+  }, [course.slug, user]);
 
   // Check if the student passed every quiz (60% or more). The certificate needs this.
   useEffect(() => {
-    const need = course.lessons.filter((l) => l.quiz);
+    let active = true;
+    const need = course.lessons.filter((l) => l.quiz?.length);
     const pass = (r) => !!r && r.total > 0 && r.score / r.total >= 0.6;
     if (!need.length) { setQuizOk(true); return; }
     if (supabase && user) {
       setQuizOk(false);
-      supabase.from("quiz_results").select("lesson_id,score,total").eq("user_id", user.id).eq("course_slug", course.slug).then(({ data }) => {
+      supabase.from("quiz_results").select("lesson_id,score,total").eq("user_id", user.id).eq("course_slug", course.slug).then(({ data, error }) => {
+        if (!active) return;
+        if (error) throw error;
         const m = {};
         (data || []).forEach((r) => { m[r.lesson_id] = r; });
         setQuizOk(need.every((l) => pass(m[l.id])));
-      });
+      }).catch(() => { if (active) setQuizOk(false); });
     } else {
       setQuizOk(need.every((l) => {
         try { return pass(JSON.parse(localStorage.getItem(`quiz:${course.slug}:${l.id}`))); } catch (e) { return false; }
       }));
     }
+    return () => { active = false; };
   }, [user, course, qtick]);
 
-  function save(patch) {
+  const save = useCallback((patch) => {
     cs.current = { ...cs.current, ...patch };
     const st = cs.current;
     if (supabase && user) {
       supabase.from("course_state").upsert(
         { user_id: user.id, course_slug: course.slug, bookmarked: st.bookmarked, last_lesson: st.last },
         { onConflict: "user_id,course_slug" }
-      ).then(() => {});
+      ).then(({ error }) => { if (error) throw error; }).catch(() => setSaveError("Your course bookmark or last lesson could not be saved. Try again."));
     } else {
-      try { localStorage.setItem("state:" + course.slug, JSON.stringify(st)); } catch (e) {}
+      try { localStorage.setItem("state:" + course.slug, JSON.stringify(st)); } catch { setSaveError("Your browser could not save this course. Check your storage settings."); }
     }
-  }
+  }, [course.slug, user]);
 
   // Save the lesson the student is on. Keep this code above the loader code.
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!stateReady) return;
     save({ last: lesson.id });
-  }, [index]);
+  }, [lesson.id, save, stateReady]);
 
   // Load the bookmark and the last lesson. Then open that lesson.
   useEffect(() => {
-    loaded.current = false;
+    let active = true;
+    setStateReady(false);
     cs.current = { bookmarked: false, last: null };
     setBookmarked(false);
     function apply(st) {
+      if (!active) return;
       cs.current = { bookmarked: !!st.bookmarked, last: st.last || null };
       setBookmarked(!!st.bookmarked);
       const i = course.lessons.findIndex((l) => l.id === st.last);
-      if (i > 0) setIndex(i);
-      loaded.current = true;
+      setIndex(Math.max(0, i));
+      setStateReady(true);
     }
     if (supabase && user) {
       supabase.from("course_state").select("bookmarked,last_lesson")
         .eq("user_id", user.id).eq("course_slug", course.slug).maybeSingle()
-        .then(({ data }) => apply({ bookmarked: data && data.bookmarked, last: data && data.last_lesson }));
+        .then(({ data, error }) => {
+          if (error) throw error;
+          apply({ bookmarked: data?.bookmarked, last: data?.last_lesson });
+        }).catch(() => { if (active) setSaveError("Your course state could not be loaded. Refresh before saving changes."); });
     } else {
       let st = {};
       try { st = JSON.parse(localStorage.getItem("state:" + course.slug)) || {}; } catch (e) {}
       apply(st);
     }
-  }, [user, course.slug]);
+    return () => { active = false; };
+  }, [user, course.slug, course.lessons]);
 
   function toggleBookmark() {
     const v = !bookmarked;
@@ -351,18 +420,20 @@ export default function Classroom({ course }) {
               <h1>{course.title}</h1>
               {course.description && <p className="muted">{course.description}</p>}
             </div>
-            <button className={"bm" + (bookmarked ? " on" : "")} onClick={toggleBookmark}>{bookmarked ? "🔖 Saved" : "🔖 Save course"}</button>
+            <button disabled={!stateReady} className={"bm" + (bookmarked ? " on" : "")} onClick={toggleBookmark}>{bookmarked ? "🔖 Saved" : "🔖 Save course"}</button>
           </div>
           <div className="progress">
             <div className="bar" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: pct + "%" }} /></div>
             <span className="muted">{`${doneCount} of ${course.lessons.length} lessons done`}{!user && supabase ? " · Log in to save your progress" : ""}</span>
           </div>
+          {saveError && <p role="alert">{saveError}</p>}
           <Certificate course={course} complete={course.lessons.every((l) => done.includes(l.id))} quizOk={quizOk} />
         </div>
       </div>
       <div className="container c-layout">
         <section className="c-main">
-          <div className="video"><div id="yt-player" /></div>
+          <div className="video"><div ref={playerHost} style={{ width: "100%", height: "100%" }} /></div>
+          {videoError && <p role="alert">{videoError} <button type="button" onClick={() => window.location.reload()}>Reload</button></p>}
           <div className="player-row">
             <h2>{index + 1}. {lesson.title}</h2>
             <div className="row">
@@ -372,19 +443,29 @@ export default function Classroom({ course }) {
           </div>
           <div className="tabs" role="tablist" aria-label="Lesson tools">
             {tabs.map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={active === id} className={"tab" + (active === id ? " on" : "")} onClick={() => setTab(id)}>{label}</button>
+              <button key={id} id={`lesson-tab-${id}`} role="tab" aria-controls={`lesson-panel-${id}`} aria-selected={active === id} tabIndex={active === id ? 0 : -1}
+                onKeyDown={(event) => {
+                  const current = tabs.findIndex(([value]) => value === id);
+                  const next = event.key === "ArrowRight" ? (current + 1) % tabs.length
+                    : event.key === "ArrowLeft" ? (current - 1 + tabs.length) % tabs.length
+                    : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+                  if (next < 0) return;
+                  event.preventDefault();
+                  setTab(tabs[next][0]);
+                  document.getElementById(`lesson-tab-${tabs[next][0]}`)?.focus();
+                }} className={"tab" + (active === id ? " on" : "")} onClick={() => setTab(id)}>{label}</button>
             ))}
           </div>
-          <div hidden={active !== "notes"}>
-            <Notes onExport={exportNotes} notes={notes} onAdd={addNote} onDelete={deleteNote} onSeek={seek} getTime={getTime} loggedIn={!!user} />
+          <div role="tabpanel" id="lesson-panel-notes" aria-labelledby="lesson-tab-notes" hidden={active !== "notes"}>
+            <Notes key={nkey} onExport={exportNotes} notes={notes} onAdd={addNote} onDelete={deleteNote} onSeek={seek} getTime={getTime} loggedIn={!!user} />
           </div>
           {lesson.quiz && (
-            <div hidden={active !== "quiz"}>
-              <Quiz quiz={lesson.quiz} slug={course.slug} lessonId={lesson.id} user={user} onResult={() => setQtick((t) => t + 1)} />
+            <div role="tabpanel" id="lesson-panel-quiz" aria-labelledby="lesson-tab-quiz" hidden={active !== "quiz"}>
+              <Quiz key={lesson.id} quiz={lesson.quiz} slug={course.slug} lessonId={lesson.id} user={user} onResult={() => setQtick((t) => t + 1)} />
             </div>
           )}
           {hasMaterials && (
-            <div hidden={active !== "materials"}>
+            <div role="tabpanel" id="lesson-panel-materials" aria-labelledby="lesson-tab-materials" hidden={active !== "materials"}>
               {lesson.pdf && (
                 <div className="materials">
                   <h3>Lesson materials</h3>
@@ -414,11 +495,11 @@ export default function Classroom({ course }) {
               )}
             </div>
           )}
-          <div hidden={active !== "boards"}>
-            <Whiteboard slug={course.slug} lessonId={lesson.id} user={user} canEdit={teacher} />
+          <div role="tabpanel" id="lesson-panel-boards" aria-labelledby="lesson-tab-boards" hidden={active !== "boards"}>
+            <Whiteboard key={lesson.id} slug={course.slug} lessonId={lesson.id} user={user} canEdit={teacher} />
           </div>
-          <div hidden={active !== "questions"}>
-            <Comments slug={course.slug} lessonId={lesson.id} user={user} teacher={teacher} />
+          <div role="tabpanel" id="lesson-panel-questions" aria-labelledby="lesson-tab-questions" hidden={active !== "questions"}>
+            <Comments key={lesson.id} slug={course.slug} lessonId={lesson.id} user={user} teacher={teacher} />
           </div>
         </section>
         <aside className="c-side" aria-label="Lessons">

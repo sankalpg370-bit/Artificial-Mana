@@ -15,8 +15,18 @@ export default function ThemeToggle() {
         document.documentElement.dataset.theme = storedTheme;
       }
     } catch (error) {
+      setTheme(document.documentElement.dataset.theme === "light" ? "light" : "dark");
       console.error("Unable to load the saved theme preference.", error);
     }
+    // Another tab may change the saved preference while this tab is open.
+    const sync = (event) => {
+      if (event.key !== THEME_STORAGE_KEY) return;
+      const value = event.newValue === "light" ? "light" : "dark";
+      document.documentElement.dataset.theme = value;
+      setTheme(value);
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
   }, []);
 
   function toggleTheme() {

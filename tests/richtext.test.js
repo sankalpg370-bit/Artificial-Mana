@@ -18,3 +18,8 @@ describe("safeHtml (notes safety)", () => {
     expect(out).toContain("&lt;b&gt;");
   });
 });
+
+it("handles missing and malformed note content", () => {
+  expect(safeHtml(null)).not.toContain("null");
+  expect(safeHtml({ content: "wrong shape" })).not.toContain("object Object");
+});

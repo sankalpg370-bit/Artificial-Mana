@@ -11,19 +11,24 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
   const [visibleCount, setVisibleCount] = useState(QUESTIONS_PER_BATCH);
   const [message, setMessage] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const key = `quiz:${slug}:${lessonId}`;
   const visibleQuiz = quiz.slice(0, visibleCount);
 
   useEffect(() => {
+    let active = true;
     setPick({});
     setScore(null);
     setBest(null);
     setVisibleCount(QUESTIONS_PER_BATCH);
     setMessage("");
+    setSaveFailed(false);
     if (supabase && user) {
       supabase.from("quiz_results").select("score,total").eq("user_id", user.id)
         .eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle()
         .then(({ data, error }) => {
+          if (!active) return;
           if (error) {
             setMessage(`Could not load your saved score: ${error.message}`);
             return;
@@ -31,6 +36,7 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
           if (data) setBest(data);
         })
         .catch((error) => {
+          if (!active) return;
           console.error("Unable to load the saved quiz score.", error);
           setMessage("Could not load your saved score. Please try again.");
         });
@@ -42,6 +48,7 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
         setMessage("Could not load your saved score from this browser.");
       }
     }
+    return () => { active = false; };
   }, [key, user, slug, lessonId]);
 
   async function check() {
@@ -57,6 +64,8 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
       return;
     }
 
+    setSaving(true);
+    setSaveFailed(false);
     try {
       if (supabase && user) {
         const { error } = await supabase.from("quiz_results").upsert(
@@ -71,8 +80,9 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
       if (onResult) onResult();
     } catch (error) {
       console.error("Unable to save the quiz score.", error);
+      setSaveFailed(true);
       setMessage("Your score could not be saved. Please try again.");
-    }
+    } finally { setSaving(false); }
   }
 
   async function downloadAnswerKey() {
@@ -134,11 +144,12 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
         </div>
       )}
       {score === null ? (
-        <div className="row"><button disabled={!all} onClick={check}>Check answers</button></div>
+        <div className="row"><button disabled={!all || saving} onClick={check}>Check answers</button></div>
       ) : (
         <div className="row">
           <strong>You got {score} of {visibleQuiz.length}.</strong>
-          <button onClick={() => { setPick({}); setScore(null); }}>Try again</button>
+          <button disabled={saving} onClick={() => { setPick({}); setScore(null); setSaveFailed(false); }}>Try again</button>
+          {saveFailed && <button disabled={saving} onClick={check}>Retry saving score</button>}
         </div>
       )}
       {message && <p role="alert">{message}</p>}

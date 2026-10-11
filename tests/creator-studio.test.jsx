@@ -76,3 +76,29 @@ describe("CreatorStudio", () => {
     expect(query.filters).toContainEqual(["creator_id", "teacher-1"]);
   });
 });
+
+
+it("keeps a newly linked upload when removal of the old file throws", async () => {
+  const user = userEvent.setup();
+  const fake = makeFake({ user: { id: "teacher-1" }, rows: {
+    profiles: [{ user_id: "teacher-1", role: "teacher" }],
+    courses: [{ slug: "intro", title: "Introduction to AI" }],
+    creator_materials: [{ id: "m1", creator_id: "teacher-1", course_slug: "intro", kind: "file", title: "Worksheet", storage_path: "teacher-1/old.pdf", published: false }],
+  } });
+  const remove = vi.fn().mockRejectedValue(new Error("storage offline"));
+  fake.storage = { from: () => ({
+    createSignedUrl: async () => ({ data: { signedUrl: "https://example.com/old.pdf" } }),
+    upload: async () => ({ error: null }),
+    remove,
+  }) };
+  state.current = fake;
+  render(<CreatorStudio />);
+  await screen.findByRole("heading", { name: "Worksheet" });
+  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.upload(screen.getByLabelText(/Attach a file/), new File(["pdf"], "new.pdf", { type: "application/pdf" }));
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+  expect(await screen.findByText(/Material saved, but file cleanup failed/)).toBeInTheDocument();
+  expect(fake.db.creator_materials[0].storage_path).toMatch(/new.pdf$/);
+  expect(remove).toHaveBeenCalledTimes(1);
+  expect(remove).toHaveBeenCalledWith(["teacher-1/old.pdf"]);
+});

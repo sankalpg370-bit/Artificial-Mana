@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useDebouncedSave } from "../../../lib/use-debounced-save";
 import { supabase } from "../../../lib/supabase";
 
 const ExcalidrawBoard = dynamic(() => import("./ExcalidrawBoard"), { ssr: false, loading: () => <p className="muted">Loading the board...</p> });
@@ -66,18 +67,24 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
   const canvas = useRef(null), wrap = useRef(null);
   const cur = useRef([]), hist = useRef([]), fut = useRef([]);
   const drawing = useRef(null), loaded = useRef(false);
+  const dirty = useRef(false);
+  const [loadError, setLoadError] = useState("");
+  const persistence = useDebouncedSave();
+  const { schedule, flush } = persistence;
   const key = `board:${slug}:${lessonId}`;
 
   function setBoard(b) {
+    dirty.current = true;
     setBoardRaw(b);
     if (b !== "blackboard" && color === "#ffffff") setColor("#111111");
     if (b === "blackboard" && color === "#111111") setColor("#ffffff");
   }
 
-  function render() {
+  const render = useCallback(() => {
     const cv = canvas.current;
     if (!cv) return;
     const c = cv.getContext("2d");
+    if (!c) return;
     c.fillStyle = BG[board]; c.fillRect(0, 0, W, H);
     if (board === "grid") {
       c.strokeStyle = "#dfe5f1"; c.lineWidth = 1; c.beginPath();
@@ -87,61 +94,64 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
     }
     cur.current.forEach((s) => drawStroke(c, s));
     if (drawing.current && drawing.current.pts) drawStroke(c, drawing.current);
-  }
+  }, [board]);
 
-  useEffect(() => { if (open) render(); }, [open, strokes, board]);
+  useEffect(() => { if (open) render(); }, [open, strokes, render]);
 
-  // Load the saved board when it opens, or when the lesson changes.
+  // A failed read must not silently become an empty board that overwrites saved work.
   useEffect(() => {
     if (!open) return;
+    let active = true;
     loaded.current = false;
+    dirty.current = false;
+    drawing.current = null;
     cur.current = [];
+    hist.current = [];
+    fut.current = [];
     setStrokes([]);
-    const apply = (d) => {
-      const st = (d && d.strokes) || [];
-      cur.current = st; hist.current = []; fut.current = [];
-      setStrokes(st);
-      if (d && d.board) setBoardRaw(d.board);
+    setLoadError("");
+    const apply = (data) => {
+      if (!active) return;
+      const saved = Array.isArray(data?.strokes) ? data.strokes.filter((stroke) => Array.isArray(stroke?.pts) && stroke.pts.length) : [];
+      cur.current = saved;
+      setStrokes(saved);
+      setBoardRaw(BG[data?.board] ? data.board : "blackboard");
       loaded.current = true;
     };
-    if (shared) {
-      if (!supabase) { apply(null); return; }
-      supabase.from("lesson_boards").select("data").eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle()
-        .then(({ data }) => apply(data && data.data));
-      return;
-    }
-    if (supabase && user) {
-      supabase.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle()
-        .then(({ data }) => apply(data && data.data));
-    } else {
-      let d = null;
-      try { d = JSON.parse(localStorage.getItem(key)); } catch (e) {}
-      apply(d);
-    }
-  }, [open, key, user, shared]);
+    const read = async () => {
+      try {
+        if (shared && supabase) {
+          const { data, error } = await supabase.from("lesson_boards").select("data").eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle();
+          if (error) throw error;
+          apply(data?.data);
+        } else if (supabase && user && !shared) {
+          const { data, error } = await supabase.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle();
+          if (error) throw error;
+          apply(data?.data);
+        } else apply(shared ? null : JSON.parse(localStorage.getItem(key)));
+      } catch (error) {
+        console.error("Unable to load the board.", error);
+        if (active) setLoadError("Your board could not be loaded. Close and reopen it to retry.");
+      }
+    };
+    read();
+    return () => { active = false; };
+  }, [open, key, user, shared, slug, lessonId]);
 
-  // Save the board one second after the last change.
   useEffect(() => {
-    if (!loaded.current) return;
-    const t = setTimeout(() => {
-      const data = { board, strokes };
-      if (shared) {
-        // Only the teacher saves the shared board.
-        if (canEdit && supabase) {
-          supabase.from("lesson_boards").upsert({ course_slug: slug, lesson_id: lessonId, data, updated_at: new Date().toISOString() },
-            { onConflict: "course_slug,lesson_id" }).then(() => {});
-        }
-        return;
-      }
-      if (supabase && user) {
-        supabase.from("boards").upsert({ user_id: user.id, course_slug: slug, lesson_id: lessonId, data },
-          { onConflict: "user_id,course_slug,lesson_id" }).then(() => {});
-      } else {
-        try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) {}
-      }
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [strokes, board]);
+    if (!loaded.current || !dirty.current || !canDraw) return;
+    dirty.current = false;
+    const data = { board, strokes };
+    schedule(async () => {
+      if (shared && canEdit && supabase) {
+        const { error } = await supabase.from("lesson_boards").upsert({ course_slug: slug, lesson_id: lessonId, data, updated_at: new Date().toISOString() }, { onConflict: "course_slug,lesson_id" });
+        if (error) throw error;
+      } else if (!shared && supabase && user) {
+        const { error } = await supabase.from("boards").upsert({ user_id: user.id, course_slug: slug, lesson_id: lessonId, data }, { onConflict: "user_id,course_slug,lesson_id" });
+        if (error) throw error;
+      } else if (!shared) localStorage.setItem(key, JSON.stringify(data));
+    });
+  }, [strokes, board, canDraw, canEdit, shared, slug, lessonId, user, key, schedule]);
 
   // Students watch the teacher board. It updates when the teacher saves (about 1 to 2 seconds).
   useEffect(() => {
@@ -158,9 +168,9 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
     return () => { supabase.removeChannel(ch); };
   }, [open, shared, canEdit, slug, lessonId]);
 
-  function commit(next) { hist.current.push(cur.current); fut.current = []; cur.current = next; setStrokes(next); }
-  function undo() { if (!hist.current.length) return; fut.current.push(cur.current); cur.current = hist.current.pop(); setStrokes(cur.current); }
-  function redo() { if (!fut.current.length) return; hist.current.push(cur.current); cur.current = fut.current.pop(); setStrokes(cur.current); }
+  function commit(next) { dirty.current = true; hist.current.push(cur.current); fut.current = []; cur.current = next; setStrokes(next); }
+  function undo() { if (!hist.current.length) return; dirty.current = true; fut.current.push(cur.current); cur.current = hist.current.pop(); setStrokes(cur.current); }
+  function redo() { if (!fut.current.length) return; dirty.current = true; hist.current.push(cur.current); cur.current = fut.current.pop(); setStrokes(cur.current); }
 
   function pos(e) {
     const r = canvas.current.getBoundingClientRect();
@@ -171,10 +181,11 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
     const keep = cur.current.filter((s) => !hit(s, p));
     if (keep.length === cur.current.length) return;
     if (!d.pushed) { hist.current.push(cur.current); fut.current = []; d.pushed = true; }
+    dirty.current = true;
     cur.current = keep; setStrokes(keep);
   }
   function down(e) {
-    if (e.button > 0 || !canDraw) return;
+    if (e.button > 0 || !canDraw || !loaded.current) return;
     e.preventDefault();
     canvas.current.setPointerCapture(e.pointerId);
     const p = pos(e);
@@ -204,7 +215,10 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
   function savePng() {
     canvas.current.toBlob((b) => {
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(b); a.download = `board-${lessonId}.png`; a.click();
+      if (!b) return;
+      const url = URL.createObjectURL(b);
+      a.href = url; a.download = `board-${lessonId}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
   }
 
@@ -229,18 +243,20 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
       <div className="titlebar">
         <h3 style={{ margin: 0 }}>{shared ? (canEdit ? "Teacher board (students can watch)" : "Teacher board") : "Whiteboard"}</h3>
         <div className="wb-bar">
-          <button className="tb" onClick={() => wrap.current.requestFullscreen && wrap.current.requestFullscreen()}>Full screen</button>
-          <button className="tb" onClick={() => setOpen(false)}>Close</button>
+          <button className="tb" onClick={() => wrap.current.requestFullscreen?.().catch(() => setLoadError("Full screen is unavailable in this browser."))}>Full screen</button>
+          <button className="tb" onClick={() => { flush(); setOpen(false); }}>Close</button>
         </div>
       </div>
-      {canDraw && <>
+      {loadError && <p role="alert">{loadError}</p>}
+      {persistence.message && <p role="alert">{persistence.message} <button onClick={persistence.retry}>Retry saving</button></p>}
+      {canDraw && !loadError && <>
       <div className="wb-bar">
         {TOOLS.map(([t, l]) => <button key={t} className={"tb" + (tool === t ? " on" : "")} onClick={() => setTool(t)}>{l}</button>)}
       </div>
       <div className="wb-bar">
         {COLORS.map((c) => <button key={c} className={"sw" + (color === c ? " on" : "")} style={{ background: c }} onClick={() => setColor(c)} aria-label={"Color " + c} />)}
         <input type="range" min="1" max="16" value={size} onChange={(e) => setSize(+e.target.value)} aria-label="Size" />
-        <select value={board} onChange={(e) => setBoard(e.target.value)}>
+        <select aria-label="Board background" value={board} onChange={(e) => setBoard(e.target.value)}>
           <option value="blackboard">Blackboard</option>
           <option value="whiteboard">Whiteboard</option>
           <option value="grid">Grid paper</option>

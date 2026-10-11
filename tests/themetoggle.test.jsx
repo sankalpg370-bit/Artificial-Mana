@@ -26,3 +26,10 @@ it("restores the saved theme", async () => {
   });
   expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
 });
+
+it("synchronizes changes from another browser tab", () => {
+  render(<ThemeToggle />);
+  fireEvent(window, new StorageEvent("storage", { key: "artificial-mana-theme", newValue: "light" }));
+  expect(document.documentElement).toHaveAttribute("data-theme", "light");
+  expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
+});

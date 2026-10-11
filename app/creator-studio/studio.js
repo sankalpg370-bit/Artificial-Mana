@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 
@@ -46,6 +46,7 @@ function errorMessage(error) {
 }
 
 export default function CreatorStudio() {
+  const request = useRef(0);
   const [user, setUser] = useState(undefined);
   const [role, setRole] = useState(null);
   const [courses, setCourses] = useState([]);
@@ -63,8 +64,10 @@ export default function CreatorStudio() {
       return;
     }
     let active = true;
+    let authChanged = false;
     supabase.auth.getSession()
       .then(({ data, error }) => {
+        if (!active || authChanged) return;
         if (error) throw error;
         if (active) setUser(data.session?.user ?? null);
       })
@@ -76,6 +79,7 @@ export default function CreatorStudio() {
         }
       });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      authChanged = true;
       if (active) setUser(session?.user ?? null);
     });
     return () => {
@@ -87,9 +91,12 @@ export default function CreatorStudio() {
   useEffect(() => {
     if (!supabase || !user) {
       setRole(null);
+      setResources([]);
+      setForm(emptyForm());
       return;
     }
     let active = true;
+    setRole(null);
     supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
       .then(({ data, error }) => {
         if (!active) return;
@@ -110,6 +117,8 @@ export default function CreatorStudio() {
   }, [user]);
 
   const reload = useCallback(async () => {
+    const id = ++request.current;
+    if (!user || !supabase) return false;
     setLoading(true);
     setLoadError("");
     try {
@@ -121,6 +130,7 @@ export default function CreatorStudio() {
       ]);
       const failed = [courseResult, lessonResult, resourceResult].find((result) => result.error);
       if (failed) throw new Error(failed.error.message);
+      if (id !== request.current) return false;
       setCourses(courseResult.data || []);
       setLessons(lessonResult.data || []);
       const resourcesWithFiles = await Promise.all((resourceResult.data || []).map(async (resource) => {
@@ -130,23 +140,27 @@ export default function CreatorStudio() {
         if (error) throw new Error(error.message);
         return { ...resource, signed_file_url: data.signedUrl };
       }));
+      if (id !== request.current) return false;
       setResources(resourcesWithFiles);
       setMessage("");
       return true;
     } catch (error) {
+      if (id !== request.current) return false;
       console.error("Unable to load creator materials.", error);
       setLoadError("Could not load creator materials. Check your connection and try again.");
       setMessage(`Could not load creator materials: ${errorMessage(error)}. Make sure the creator materials database setup has been applied.`);
       return false;
     } finally {
-      setLoading(false);
+      if (id === request.current) setLoading(false);
     }
   }, [user]);
 
   const isCreator = role === "teacher" || role === "admin";
 
   useEffect(() => {
+    const counter = request;
     if (isCreator) reload();
+    return () => { counter.current++; };
   }, [isCreator, reload]);
 
   const formLessons = useMemo(
@@ -217,6 +231,7 @@ export default function CreatorStudio() {
     setBusy(true);
     setMessage("");
     let uploadedPath = "";
+    let committed = false;
     let cleanupWarning = "";
     try {
       let fileUrl = form.file_url || null;
@@ -248,6 +263,7 @@ export default function CreatorStudio() {
         ? await supabase.from("creator_materials").update(row).eq("id", form.id)
         : await supabase.from("creator_materials").insert(row);
       if (result.error) throw new Error(result.error.message);
+      committed = true;
 
       if (form.id && uploadedPath && form.storage_path) {
         const removal = await supabase.storage.from("creator-materials").remove([form.storage_path]);
@@ -260,12 +276,13 @@ export default function CreatorStudio() {
       if (cleanupWarning) setMessage(cleanupWarning);
       else if (refreshed) setMessage(form.id ? "Material updated." : "Material saved.");
     } catch (error) {
-      if (uploadedPath) {
+      // Once linked, a cleanup failure must never remove the new, live file.
+      if (uploadedPath && !committed) {
         const cleanup = await supabase.storage.from("creator-materials").remove([uploadedPath]);
         if (cleanup.error) console.error("Unable to clean up an unlinked creator upload.", cleanup.error);
       }
       console.error("Unable to save creator material.", error);
-      setMessage(`Could not save material: ${errorMessage(error)}`);
+      setMessage(committed ? `Material saved, but file cleanup failed: ${errorMessage(error)}` : `Could not save material: ${errorMessage(error)}`);
     } finally {
       setBusy(false);
     }

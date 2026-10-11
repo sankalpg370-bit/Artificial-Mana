@@ -14,13 +14,14 @@ export const metadata = {
 };
 
 // Sets the theme before the page shows, so there is no flash. The default is dark.
-const themeScript = `(function(){try{var t=localStorage.getItem("artificial-mana-theme");if(t!=="light"&&t!=="dark"){t="dark"}document.documentElement.dataset.theme=t}catch(e){}})()`;
+const themeScript = `(function(){try{var t=localStorage.getItem("artificial-mana-theme");if(t!=="light"&&t!=="dark"){t="dark"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="dark"}})()`;
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
       <body>
+        <a className="skip-link" href="#main-content">Skip to content</a>
         <header className="top">
           <div className="top-in">
             <Link href="/" className="logo">
@@ -39,7 +40,7 @@ export default function RootLayout({ children }) {
             <div className="auth"><ThemeToggle /><AuthButton /></div>
           </div>
         </header>
-        <main>{children}</main>
+        <main id="main-content">{children}</main>
         <footer className="foot">
           <div className="foot-in">
             <div>

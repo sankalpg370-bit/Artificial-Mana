@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 const TABLES = [
@@ -22,6 +22,7 @@ function rowKey(record, fields) {
 }
 
 export default function AdminControlCenter() {
+  const request = useRef(0);
   const [table, setTable] = useState(TABLES[0]);
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(0);
@@ -30,6 +31,7 @@ export default function AdminControlCenter() {
   const [message, setMessage] = useState("");
 
   const reload = useCallback(async () => {
+    const id = ++request.current;
     if (!supabase) {
       setRows([]);
       setMessage("Supabase is not configured.");
@@ -44,19 +46,25 @@ export default function AdminControlCenter() {
         .order(table.order, { ascending: false })
         .range(start, start + PAGE_SIZE - 1);
       if (error) throw error;
+      if (id !== request.current) return;
       setRows(data || []);
       setHasMore((data || []).length === PAGE_SIZE);
     } catch (error) {
+      if (id !== request.current) return;
       console.error(`Unable to load ${table.label.toLowerCase()}.`, error);
       setRows([]);
       setHasMore(false);
       setMessage(`Could not load ${table.label.toLowerCase()}. Check your connection and try again.`);
     } finally {
-      setLoading(false);
+      if (id === request.current) setLoading(false);
     }
   }, [page, table]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    const counter = request;
+    reload();
+    return () => { counter.current++; };
+  }, [reload]);
 
   function selectTable(nextTable) {
     setTable(nextTable);
@@ -64,50 +72,65 @@ export default function AdminControlCenter() {
   }
 
   async function saveRecord(record, serialized) {
-    let edited;
     try {
-      edited = JSON.parse(serialized);
-    } catch {
-      setMessage("The record must be valid JSON before it can be saved.");
-      return;
+      let edited;
+      try {
+        edited = JSON.parse(serialized);
+      } catch {
+        setMessage("The record must be valid JSON before it can be saved.");
+        return;
+      }
+      if (!edited || Array.isArray(edited) || typeof edited !== "object") {
+        setMessage("A record must be a JSON object.");
+        return;
+      }
+      const payload = { ...edited };
+      const query = supabase.from(table.name).update(payload);
+      for (const key of table.key) query.eq(key, record[key]);
+      const { error } = await query;
+      if (error) {
+        setMessage(`Could not save record: ${error.message}`);
+        return;
+      }
+      setMessage("Record saved.");
+      await reload();
+    } catch (error) {
+      console.error("Admin record action failed.", error);
+      setMessage("Could not complete this action. Check your connection and retry.");
     }
-    if (!edited || Array.isArray(edited) || typeof edited !== "object") {
-      setMessage("A record must be a JSON object.");
-      return;
-    }
-    const payload = { ...edited };
-    const query = supabase.from(table.name).update(payload);
-    for (const key of table.key) query.eq(key, record[key]);
-    const { error } = await query;
-    if (error) {
-      setMessage(`Could not save record: ${error.message}`);
-      return;
-    }
-    setMessage("Record saved.");
-    await reload();
   }
 
   async function saveRole(record, role) {
-    const { error } = await supabase.from("profiles").update({ role }).eq("user_id", record.user_id);
-    if (error) {
-      setMessage(`Could not update user role: ${error.message}`);
-      return;
+    try {
+      const { error } = await supabase.from("profiles").update({ role }).eq("user_id", record.user_id);
+      if (error) {
+        setMessage(`Could not update user role: ${error.message}`);
+        return;
+      }
+      setMessage("User role updated.");
+      await reload();
+    } catch (error) {
+      console.error("Admin record action failed.", error);
+      setMessage("Could not complete this action. Check your connection and retry.");
     }
-    setMessage("User role updated.");
-    await reload();
   }
 
   async function deleteRecord(record) {
-    if (!window.confirm(`Permanently delete this ${table.label.toLowerCase()} record (${rowKey(record, table.key)})?`)) return;
-    const query = supabase.from(table.name).delete();
-    for (const key of table.key) query.eq(key, record[key]);
-    const { error } = await query;
-    if (error) {
-      setMessage(`Could not delete record: ${error.message}`);
-      return;
+    try {
+      if (!window.confirm(`Permanently delete this ${table.label.toLowerCase()} record (${rowKey(record, table.key)})?`)) return;
+      const query = supabase.from(table.name).delete();
+      for (const key of table.key) query.eq(key, record[key]);
+      const { error } = await query;
+      if (error) {
+        setMessage(`Could not delete record: ${error.message}`);
+        return;
+      }
+      setMessage("Record deleted.");
+      await reload();
+    } catch (error) {
+      console.error("Admin record action failed.", error);
+      setMessage("Could not complete this action. Check your connection and retry.");
     }
-    setMessage("Record deleted.");
-    await reload();
   }
 
   return (
@@ -139,7 +162,7 @@ export default function AdminControlCenter() {
       {!loading && rows.map((record) => {
         const identity = rowKey(record, table.key);
         return (
-          <details className="note admin-record" key={identity}>
+          <details className="note admin-record" key={`${table.name}:${identity}`}>
             <summary>{identity}</summary>
             {table.name === "profiles" && (
               <label>

@@ -8,7 +8,7 @@ vi.mock("../lib/supabase", async () => {
   return { get supabase() { return state.current; } };
 });
 // The notes editor and the boards have their own tests. Here we test the lesson page logic.
-vi.mock("../app/course/[slug]/Notes", () => ({ default: () => null, fmt: (s) => String(s) }));
+vi.mock("../app/course/[slug]/Notes", () => ({ default: ({ notes }) => <div data-testid="loaded-notes">{notes.map((note) => <span key={note.id}>{note.content}</span>)}</div>, fmt: (s) => String(s) }));
 vi.mock("../app/course/[slug]/Whiteboard", () => ({ default: () => null }));
 import Classroom from "../app/course/[slug]/Classroom";
 
@@ -29,7 +29,7 @@ beforeEach(() => {
       constructor(id, opts) { this.opts = opts; this.loaded = []; players.push(this); }
       loadVideoById(v) { this.loaded.push(v); }
       getCurrentTime() { return 5; }
-      destroy() {}
+      destroy = vi.fn();
     },
   };
 });
@@ -147,4 +147,53 @@ describe("Classroom", () => {
     render(<Classroom course={withQuiz} />);
     expect(await screen.findByText(/You finished this course/)).toBeInTheDocument();
   });
+});
+
+
+it("destroys the YouTube player when leaving the classroom", () => {
+  const { unmount } = render(<Classroom course={course} />);
+  const player = players[0];
+  unmount();
+  expect(player.destroy).toHaveBeenCalledOnce();
+});
+
+it("ignores malformed browser progress instead of crashing", () => {
+  localStorage.setItem("progress:intro", JSON.stringify({ wrong: "shape" }));
+  render(<Classroom course={course} />);
+  expect(screen.getByText(/0 of 3 lessons done/)).toBeInTheDocument();
+});
+
+it("reports unavailable YouTube videos", async () => {
+  render(<Classroom course={course} />);
+  await act(async () => players[0].opts.events.onError({ data: 100 }));
+  expect(screen.getByRole("alert")).toHaveTextContent("This video is unavailable");
+});
+
+
+it("does not put a delayed note response into the newly selected lesson", async () => {
+  const fake = makeFake({ user: { id: "u1" } });
+  const original = fake.from;
+  let resolveOld;
+  fake.from = (table) => {
+    const query = original(table);
+    if (table !== "notes") return query;
+    let lesson;
+    const eq = query.eq;
+    query.eq = (key, value) => { if (key === "lesson_id") lesson = value; return eq(key, value); };
+    query.then = (resolve, reject) => {
+      const read = lesson === "l1"
+        ? new Promise((finish) => { resolveOld = () => finish({ data: [{ id: "old", content: "Old lesson note" }] }); })
+        : Promise.resolve({ data: [{ id: "new", content: "New lesson note" }] });
+      return read.then(resolve, reject);
+    };
+    return query;
+  };
+  state.current = fake;
+  render(<Classroom course={course} />);
+  await waitFor(() => expect(resolveOld).toBeTypeOf("function"));
+  await userEvent.setup().click(lessonButton("Second lesson"));
+  expect(await screen.findByText("New lesson note")).toBeInTheDocument();
+  await act(async () => resolveOld());
+  expect(screen.queryByText("Old lesson note")).not.toBeInTheDocument();
+  expect(screen.getByText("New lesson note")).toBeInTheDocument();
 });

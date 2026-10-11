@@ -23,7 +23,7 @@ export default function CourseBrowser({ courses }) {
       {cats.length > 2 && (
         <div className="chips">
           {cats.map((c) => (
-            <button key={c} className={"chip" + (c === cat ? " on" : "")} onClick={() => setCat(c)}>{c}</button>
+            <button key={c} type="button" aria-pressed={c === cat} className={"chip" + (c === cat ? " on" : "")} onClick={() => setCat(c)}>{c}</button>
           ))}
         </div>
       )}

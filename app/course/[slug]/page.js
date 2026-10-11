@@ -16,5 +16,5 @@ export default async function CoursePage({ params }) {
   const { slug } = await params;
   const course = (await getCourses()).find((c) => c.slug === slug);
   if (!course) notFound();
-  return <Classroom course={course} />;
+  return <Classroom key={course.slug} course={course} />;
 }

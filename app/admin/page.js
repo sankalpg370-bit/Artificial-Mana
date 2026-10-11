@@ -24,8 +24,10 @@ export default function Admin() {
   useEffect(() => {
     if (!supabase) { setUser(null); return; }
     let active = true;
+    let authChanged = false;
     supabase.auth.getSession()
       .then(({ data, error }) => {
+        if (!active || authChanged) return;
         if (error) throw error;
         if (active) setUser(data.session?.user ?? null);
       })
@@ -36,7 +38,11 @@ export default function Admin() {
           setUser(null);
         }
       });
-    return () => { active = false; };
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      authChanged = true;
+      if (active) { setUser(session?.user ?? null); setRole(null); }
+    });
+    return () => { active = false; subscription.subscription.unsubscribe(); };
   }, []);
   useEffect(() => {
     if (!supabase || !user) return;
@@ -86,21 +92,36 @@ export default function Admin() {
   useEffect(() => { if (isTeacher) reload(); }, [isTeacher]);
 
   async function addCourse() {
-    const slug = slugify(nc.title);
-    if (!slug) { setMsg("Write a title for the course."); return; }
-    const { error } = await supabase.from("courses").insert({
-      slug, title: nc.title.trim(), description: nc.description.trim(), category: nc.category.trim() || null, published: false });
-    if (error) { setMsg(error.message); return; }
-    setNc({ title: "", description: "", category: "" }); setMsg("Course made. Add lessons. Then publish it."); reload();
+    try {
+      const slug = slugify(nc.title);
+      if (!slug) { setMsg("Write a title for the course."); return; }
+      const { error } = await supabase.from("courses").insert({
+        slug, title: nc.title.trim(), description: nc.description.trim(), category: nc.category.trim() || null, published: false });
+      if (error) { setMsg(error.message); return; }
+      setNc({ title: "", description: "", category: "" }); setMsg("Course made. Add lessons. Then publish it."); reload();
+    } catch (error) {
+      console.error("Admin action failed.", error);
+      setMsg("Could not complete this action. Check your connection and try again.");
+    }
   }
   async function togglePublish(c) {
-    const { error } = await supabase.from("courses").update({ published: !c.published }).eq("slug", c.slug);
-    if (error) setMsg(error.message); else reload();
+    try {
+      const { error } = await supabase.from("courses").update({ published: !c.published }).eq("slug", c.slug);
+      if (error) setMsg(error.message); else reload();
+    } catch (error) {
+      console.error("Admin action failed.", error);
+      setMsg("Could not complete this action. Check your connection and try again.");
+    }
   }
   async function deleteCourse(c) {
-    if (!window.confirm(`Delete the course "${c.title}" and all its lessons?`)) return;
-    const { error } = await supabase.from("courses").delete().eq("slug", c.slug);
-    if (error) setMsg(error.message); else reload();
+    try {
+      if (!window.confirm(`Delete the course "${c.title}" and all its lessons?`)) return;
+      const { error } = await supabase.from("courses").delete().eq("slug", c.slug);
+      if (error) setMsg(error.message); else reload();
+    } catch (error) {
+      console.error("Admin action failed.", error);
+      setMsg("Could not complete this action. Check your connection and try again.");
+    }
   }
   async function lockPortal() {
     try {
@@ -131,7 +152,7 @@ export default function Admin() {
       <p className="muted">Changes show on the public site in about 1 minute.</p>
       {msg && <p className="notice" role="status" aria-live="polite">{msg}</p>}
 
-      {role === "admin" && <AdminControlCenter />}
+      {role === "admin" && <AdminControlCenter key={user.id} />}
 
       <div className="panel">
         <h2>New course</h2>
@@ -170,32 +191,37 @@ function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
   const setQ = (i, patch) => setQuiz(quiz.map((q, j) => (j === i ? { ...q, ...patch } : q)));
 
   async function save() {
-    const id = getYouTubeVideoId(link);
-    if (!title.trim() || !id) { setMsg("Write a title and a valid YouTube link."); return; }
-    const cleanQuiz = [];
-    for (const q of quiz) {
-      if (!q.q.trim()) continue;
-      const opts = q.options.map((o, i) => ({ o: o.trim(), i })).filter((x) => x.o);
-      const answer = opts.findIndex((x) => x.i === q.answer);
-      if (opts.length < 2 || answer < 0) { setMsg("Each quiz question needs 2 or more options and a right answer."); return; }
-      cleanQuiz.push({ q: q.q.trim(), options: opts.map((x) => x.o), answer });
-    }
-    setBusy(true);
-    let pdf_url = edit && !removePdf ? initial.pdf_url : null;
-    if (file) {
-      const path = `${course.slug}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
-      const up = await supabase.storage.from("lesson-pdfs").upload(path, file, { contentType: "application/pdf" });
-      if (up.error) { setMsg(up.error.message); setBusy(false); return; }
-      pdf_url = supabase.storage.from("lesson-pdfs").getPublicUrl(path).data.publicUrl;
-    }
-    const row = { title: title.trim(), youtube_id: id, pdf_url, quiz: cleanQuiz.length ? cleanQuiz : null };
-    const res = edit
-      ? await supabase.from("lessons").update(row).eq("id", initial.id)
-      : await supabase.from("lessons").insert({ ...row, course_slug: course.slug, position: lessons.reduce((m, l) => Math.max(m, l.position), 0) + 1 });
-    setBusy(false);
-    if (res.error) { setMsg(res.error.message); return; }
-    setMsg(edit ? "Lesson saved." : "Lesson added.");
-    onDone();
+    try {
+      const id = getYouTubeVideoId(link);
+      if (!title.trim() || !id) { setMsg("Write a title and a valid YouTube link."); return; }
+      const cleanQuiz = [];
+      for (const q of quiz) {
+        if (!q.q.trim()) continue;
+        const opts = q.options.map((o, i) => ({ o: o.trim(), i })).filter((x) => x.o);
+        const answer = opts.findIndex((x) => x.i === q.answer);
+        if (opts.length < 2 || answer < 0) { setMsg("Each quiz question needs 2 or more options and a right answer."); return; }
+        cleanQuiz.push({ q: q.q.trim(), options: opts.map((x) => x.o), answer });
+      }
+      setBusy(true);
+      let pdf_url = edit && !removePdf ? initial.pdf_url : null;
+      if (file) {
+        const path = `${course.slug}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
+        const up = await supabase.storage.from("lesson-pdfs").upload(path, file, { contentType: "application/pdf" });
+        if (up.error) { setMsg(up.error.message); setBusy(false); return; }
+        pdf_url = supabase.storage.from("lesson-pdfs").getPublicUrl(path).data.publicUrl;
+      }
+      const row = { title: title.trim(), youtube_id: id, pdf_url, quiz: cleanQuiz.length ? cleanQuiz : null };
+      const res = edit
+        ? await supabase.from("lessons").update(row).eq("id", initial.id)
+        : await supabase.from("lessons").insert({ ...row, course_slug: course.slug, position: lessons.reduce((m, l) => Math.max(m, l.position), 0) + 1 });
+      setBusy(false);
+      if (res.error) { setMsg(res.error.message); return; }
+      setMsg(edit ? "Lesson saved." : "Lesson added.");
+      onDone();
+    } catch (error) {
+      console.error("Admin action failed.", error);
+      setMsg("Could not complete this action. Check your connection and try again.");
+    } finally { setBusy(false); }
   }
 
   return (
@@ -237,23 +263,44 @@ function CourseEditor({ course, lessons, onPublish, onDelete, reload, setMsg }) 
   const [d, setD] = useState({ title: course.title, description: course.description || "", category: course.category || "" });
 
   async function saveDetails() {
-    if (!d.title.trim()) { setMsg("The course needs a title."); return; }
-    const { error } = await supabase.from("courses").update({
-      title: d.title.trim(), description: d.description.trim(), category: d.category.trim() || null }).eq("slug", course.slug);
-    if (error) { setMsg(error.message); return; }
-    setEd(false); setMsg("Course saved."); reload();
+    try {
+      if (!d.title.trim()) { setMsg("The course needs a title."); return; }
+      const { error } = await supabase.from("courses").update({
+        title: d.title.trim(), description: d.description.trim(), category: d.category.trim() || null }).eq("slug", course.slug);
+      if (error) { setMsg(error.message); return; }
+      setEd(false); setMsg("Course saved."); reload();
+    } catch (error) {
+      console.error("Admin action failed.", error);
+      setMsg("Could not complete this action. Check your connection and try again.");
+    }
   }
   async function removeLesson(l) {
-    if (!window.confirm(`Delete the lesson "${l.title}"?`)) return;
-    const { error } = await supabase.from("lessons").delete().eq("id", l.id);
-    if (error) setMsg(error.message); else reload();
+    try {
+      if (!window.confirm(`Delete the lesson "${l.title}"?`)) return;
+      const { error } = await supabase.from("lessons").delete().eq("id", l.id);
+      if (error) setMsg(error.message); else reload();
+    } catch (error) {
+      console.error("Admin action failed.", error);
+      setMsg("Could not complete this action. Check your connection and try again.");
+    }
   }
   async function move(i, dir) {
-    const a = lessons[i], b = lessons[i + dir];
-    if (!a || !b) return;
-    await supabase.from("lessons").update({ position: b.position }).eq("id", a.id);
-    await supabase.from("lessons").update({ position: a.position }).eq("id", b.id);
-    reload();
+    try {
+      const a = lessons[i], b = lessons[i + dir];
+      if (!a || !b) return;
+      const first = await supabase.from("lessons").update({ position: b.position }).eq("id", a.id);
+      if (first.error) throw first.error;
+      const second = await supabase.from("lessons").update({ position: a.position }).eq("id", b.id);
+      if (second.error) {
+        // Best-effort rollback keeps a failed reorder from silently duplicating positions.
+        await supabase.from("lessons").update({ position: a.position }).eq("id", a.id);
+        throw second.error;
+      }
+      reload();
+    } catch (error) {
+      console.error("Admin action failed.", error);
+      setMsg("Could not complete this action. Check your connection and try again.");
+    }
   }
 
   return (

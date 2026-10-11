@@ -11,7 +11,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   async function go(mode) {
-    if (!supabase) { setMsg("The Supabase keys are not set. Add them to .env.local."); return; }
+    if (!supabase) { setMsg("Sign-in is temporarily unavailable. You can still browse courses and save learning progress in this browser."); return; }
     const cleanEmail = email.trim();
     if (!cleanEmail || !password) {
       setMsg("Enter your email and password to continue.");

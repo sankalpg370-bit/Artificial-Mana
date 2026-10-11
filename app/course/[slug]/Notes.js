@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { extensions, safeHtml } from "../../../lib/richtext";
 
@@ -34,6 +34,9 @@ function Toolbar({ editor }) {
 
 export default function Notes({ notes, onAdd, onDelete, onSeek, getTime, loggedIn, onExport }) {
   const [t, setT] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const pending = useRef(false);
   const editor = useEditor({
     extensions,
     content: "",
@@ -42,10 +45,27 @@ export default function Notes({ notes, onAdd, onDelete, onSeek, getTime, loggedI
     onFocus: () => setT(getTime()),
   });
 
+  async function run(action, failure) {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setMessage("");
+    try { await action(); }
+    catch (error) {
+      console.error(failure, error);
+      setMessage(failure);
+    } finally { pending.current = false; setBusy(false); }
+  }
+
   function submit() {
-    if (!editor || editor.isEmpty) return;
-    onAdd(editor.getHTML(), t);
-    editor.commands.clearContent();
+    if (!editor || editor.isEmpty || pending.current) return;
+    const content = editor.getHTML();
+    run(async () => {
+      // Keep the draft until persistence succeeds, including browser quota failures.
+      editor.setEditable(false);
+      try { await onAdd(content, t); editor.commands.clearContent(); }
+      finally { editor.setEditable(true); }
+    }, "Could not save your note. Your draft is still here; try again.");
   }
 
   return (
@@ -54,16 +74,17 @@ export default function Notes({ notes, onAdd, onDelete, onSeek, getTime, loggedI
       {editor && <Toolbar editor={editor} />}
       <EditorContent editor={editor} />
       <div className="row">
-        <button onClick={submit}>Save note at {fmt(t)}</button>
-        <button className="alt" onClick={onExport}>Download notes as PDF</button>
+        <button disabled={busy} onClick={submit}>{busy ? "Working..." : `Save note at ${fmt(t)}`}</button>
+        <button disabled={busy} className="alt" onClick={() => run(onExport, "Could not export your notes. Please try again.")}>Download notes as PDF</button>
       </div>
       {!loggedIn && <p className="muted">Your notes stay in this browser. Log in to keep them on all your devices.</p>}
+      {message && <p role="alert">{message}</p>}
       {notes.map((n) => (
         <div key={n.id} className="note">
           <button className="ts" onClick={() => onSeek(n.seconds)}>▶ {fmt(n.seconds)}</button>
           {/* safeHtml keeps only the formats the editor allows */}
           <div className="rich" dangerouslySetInnerHTML={{ __html: safeHtml(n.content) }} />
-          <button className="del" onClick={() => onDelete(n.id)} aria-label="Delete note">✕</button>
+          <button disabled={busy} className="del" onClick={() => run(() => onDelete(n.id), "Could not delete your note. Please try again.")} aria-label="Delete note">✕</button>
         </div>
       ))}
     </div>

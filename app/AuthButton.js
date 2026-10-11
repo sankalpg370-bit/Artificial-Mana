@@ -9,19 +9,21 @@ export default function AuthButton() {
   useEffect(() => {
     if (!supabase) return;
     let active = true;
+    let changed = false;
     supabase.auth.getSession()
       .then(({ data, error }) => {
+        if (!active || changed) return;
         if (error) throw error;
         if (active) setUser(data.session?.user ?? null);
       })
       .catch((error) => {
         console.error("Unable to check the current sign-in.", error);
-        if (active) {
+        if (active && !changed) {
           setUser(null);
           setMessage("Sign-in status is unavailable. Try refreshing the page.");
         }
       });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { changed = true; if (active) { setUser(s?.user ?? null); setMessage(""); } });
     return () => {
       active = false;
       sub.subscription.unsubscribe();

@@ -18,9 +18,11 @@ export default function Certificate({ course, complete, quizOk }) {
       const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
       const bytes = await makeCertificate({ name: name.trim(), courseTitle: course.title, date });
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      a.href = url;
       a.download = `certificate-${course.slug}.pdf`;
       a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       try { localStorage.setItem("cert-name", name.trim()); } catch (e) {}
     } catch (e) {
       setMsg("The certificate cannot print one of the letters. Use English letters in the name.");
@@ -36,10 +38,10 @@ export default function Certificate({ course, complete, quizOk }) {
       <h3 style={{ margin: "0 0 6px" }}>🎓 You finished this course!</h3>
       <p className="muted">Write your name as you want it on the certificate.</p>
       <div className="wb-bar">
-        <input className="search" style={{ margin: 0, maxWidth: 320 }} placeholder="Your full name" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="search" style={{ margin: 0, maxWidth: 320 }} aria-label="Your full name" placeholder="Your full name" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="tb on" disabled={busy} onClick={make}>{busy ? "Making..." : "Download certificate"}</button>
       </div>
-      {msg && <p className="muted">{msg}</p>}
+      {msg && <p className="muted" role="status">{msg}</p>}
     </div>
   );
 }

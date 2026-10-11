@@ -29,3 +29,8 @@ jobs:
         run: npm test
       - name: Build the site
         run: npm run build
+
+      - name: Install browser for public UI checks
+        run: npx playwright install --with-deps chromium
+      - name: Run public UI smoke tests
+        run: npm run test:smoke

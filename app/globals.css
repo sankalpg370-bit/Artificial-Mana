@@ -223,3 +223,31 @@ button:disabled{cursor:not-allowed}
   .xwrap{height:min(70vh,620px)}
   .pdf{height:min(65vh,540px)}
 }
+
+/* Let long course titles, note code, and admin JSON shrink inside flex/grid cells. */
+.c-main,.c-title>div,.ltitle,.creator-material>div,.admin-record{min-width:0}
+.c-title,.crumbs{flex-wrap:wrap}
+.crumbs,.ltitle,.cc-body h3,.cm-head,.admin-record summary{overflow-wrap:anywhere}
+.course-grid{grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr))}
+.editor pre,.rich pre{max-width:100%;overflow-x:auto;white-space:pre;padding:10px;background:var(--soft2);border-radius:8px}
+.admin-record{display:block;overflow-wrap:anywhere}
+.admin-record label{display:block;margin-top:12px}
+.admin-record textarea{display:block;width:100%;max-width:100%;resize:vertical;font:inherit;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
+.auth{flex-wrap:wrap}
+.auth>span[role=status]{max-width:220px;white-space:normal;overflow-wrap:anywhere}
+.skip-link{position:fixed;top:8px;left:8px;z-index:100;background:var(--bg);padding:10px;border:2px solid var(--primary);transform:translateY(-150%)}
+.skip-link:focus{transform:translateY(0)}
+.skeleton{height:140px;background:var(--soft2);border-radius:14px;margin:16px 0}
+.skeleton.video-skeleton{aspect-ratio:16/9;height:auto}
+@media(max-width:560px){
+  .auth{margin-left:auto}
+  .note{flex-wrap:wrap}
+  .note .rich{flex-basis:calc(100% - 96px)}
+  .cm.reply{margin-left:12px}
+}
+
+@media(min-width:561px) and (max-width:860px){
+  .top-in{height:auto;min-height:64px;flex-wrap:wrap;padding:12px 24px;gap:8px 16px}
+  .nav{order:2;flex:1 0 100%;justify-content:center}
+  .auth{margin-left:auto;max-width:100%}
+}
