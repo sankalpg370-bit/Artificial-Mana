@@ -120,10 +120,22 @@ create policy "read own or published creator materials" on creator_materials
     )
   );
 create policy "teachers add own creator materials" on creator_materials
-  for insert with check (auth.uid() = creator_id and is_teacher());
+    for insert with check (
+      auth.uid() = creator_id and is_teacher()
+      and (
+        storage_path is null
+        or (storage.foldername(storage_path))[1] = auth.uid()::text
+      )
+    );
 create policy "teachers update own creator materials" on creator_materials
-  for update using (auth.uid() = creator_id and is_teacher())
-  with check (auth.uid() = creator_id and is_teacher());
+    for update using (auth.uid() = creator_id and is_teacher())
+    with check (
+      auth.uid() = creator_id and is_teacher()
+      and (
+        storage_path is null
+        or (storage.foldername(storage_path))[1] = auth.uid()::text
+      )
+    );
 create policy "teachers delete own creator materials" on creator_materials
   for delete using (auth.uid() = creator_id and is_teacher());
 
@@ -147,6 +159,7 @@ create policy "read own or published creator material files" on storage.objects
     and exists (
       select 1 from creator_materials m
       where m.storage_path = name
+        and (storage.foldername(name))[1] = m.creator_id::text
         and (
           m.creator_id = auth.uid()
           or (
@@ -168,10 +181,7 @@ drop policy if exists "teachers update creator material files" on storage.object
 create policy "teachers update own creator material files" on storage.objects
   for update using (
     bucket_id = 'creator-materials' and is_teacher()
-    and (
-      (storage.foldername(name))[1] = auth.uid()::text
-      or owner_id = auth.uid()::text
-    )
+    and (storage.foldername(name))[1] = auth.uid()::text
   )
   with check (
     bucket_id = 'creator-materials' and is_teacher()
@@ -181,8 +191,5 @@ drop policy if exists "teachers delete creator material files" on storage.object
 create policy "teachers delete own creator material files" on storage.objects
   for delete using (
     bucket_id = 'creator-materials' and is_teacher()
-    and (
-      (storage.foldername(name))[1] = auth.uid()::text
-      or owner_id = auth.uid()::text
-    )
+    and (storage.foldername(name))[1] = auth.uid()::text
   );
