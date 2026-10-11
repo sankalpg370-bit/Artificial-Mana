@@ -10,8 +10,9 @@ begin
     where (
       schemaname = 'public'
       and tablename = any(array[
-        'profiles', 'progress', 'notes', 'course_state',
-        'quiz_results', 'boards', 'creator_materials', 'comments'
+        'profiles', 'courses', 'lessons', 'progress', 'notes',
+        'course_state', 'quiz_results', 'boards',
+        'creator_materials', 'comments'
       ])
     ) or (
       schemaname = 'storage'
@@ -31,6 +32,32 @@ end $$;
 alter table profiles enable row level security;
 create policy "read own profile" on profiles
   for select using (auth.uid() = user_id);
+
+alter table courses enable row level security;
+create policy "read published courses or creator courses" on courses
+  for select using (published or is_teacher());
+create policy "creators add courses" on courses
+  for insert with check (is_teacher());
+create policy "creators update courses" on courses
+  for update using (is_teacher()) with check (is_teacher());
+create policy "creators delete courses" on courses
+  for delete using (is_teacher());
+
+alter table lessons enable row level security;
+create policy "read published lessons or creator lessons" on lessons
+  for select using (
+    is_teacher()
+    or exists (
+      select 1 from courses c
+      where c.slug = lessons.course_slug and c.published
+    )
+  );
+create policy "creators add lessons" on lessons
+  for insert with check (is_teacher());
+create policy "creators update lessons" on lessons
+  for update using (is_teacher()) with check (is_teacher());
+create policy "creators delete lessons" on lessons
+  for delete using (is_teacher());
 
 alter table progress enable row level security;
 create policy "read own progress" on progress

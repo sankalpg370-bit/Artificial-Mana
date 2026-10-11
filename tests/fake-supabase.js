@@ -8,13 +8,17 @@ export function makeFake({ user = null, rows = {}, failInsert = null } = {}) {
   const table = (t) => (db[t] = db[t] || []);
 
   function from(t) {
-    const q = { op: "select", filters: [], order: null, payload: null, conflict: null, single: false };
+    const q = { op: "select", filters: [], order: null, payload: null, conflict: null, single: false, range: null };
     const run = () => {
       let data = null, error = null;
       const match = (r) => q.filters.every(([k, v]) => r[k] === v);
       if (q.op === "select") {
         data = table(t).filter(match);
-        if (q.order) data = [...data].sort((a, b) => (a[q.order] > b[q.order] ? 1 : -1));
+        if (q.order) data = [...data].sort((a, b) => {
+          const result = a[q.order] > b[q.order] ? 1 : a[q.order] < b[q.order] ? -1 : 0;
+          return q.orderAscending ? result : -result;
+        });
+        if (q.range) data = data.slice(q.range[0], q.range[1] + 1);
         if (q.single) data = data[0] || null;
       } else if (q.op === "insert") {
         if (failInsert) { error = { message: failInsert }; }
@@ -40,7 +44,8 @@ export function makeFake({ user = null, rows = {}, failInsert = null } = {}) {
     const api = {
       select() { return api; },
       eq(k, v) { q.filters.push([k, v]); return api; },
-      order(k) { q.order = k; return api; },
+      order(k, options = {}) { q.order = k; q.orderAscending = options.ascending ?? true; return api; },
+      range(start, end) { q.range = [start, end]; return api; },
       maybeSingle() { q.single = true; return api; },
       single() { q.single = true; return api; },
       insert(p) { q.op = "insert"; q.payload = p; return api; },

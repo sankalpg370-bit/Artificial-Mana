@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import AdminControlCenter from "./AdminControlCenter";
 
 const slugify = (t) => t.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 function ytId(v) {
@@ -67,6 +68,8 @@ export default function Admin() {
       <p><Link className="btn" href="/creator-studio">Open Creator Studio</Link></p>
       <p className="muted">Changes show on the public site in about 1 minute.</p>
       {msg && <p className="notice">{msg}</p>}
+
+      {role === "admin" && <AdminControlCenter />}
 
       <div className="panel">
         <h2>New course</h2>
