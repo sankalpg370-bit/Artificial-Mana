@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "types": ["node"]
+  },
+  "include": [
+    "app/api/admin-access/route.js",
+    "lib/admin-access.js",
+    "lib/courses.js",
+    "lib/supabase-config.js",
+    "lib/supabase.js",
+    "proxy.js"
+  ]
+}

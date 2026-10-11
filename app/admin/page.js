@@ -16,22 +16,71 @@ export default function Admin() {
   const [courses, setCourses] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [msg, setMsg] = useState("");
+  const [loadingCourses, setLoadingCourses] = useState(true);
+  const [courseLoadError, setCourseLoadError] = useState("");
+  const [authError, setAuthError] = useState("");
   const [nc, setNc] = useState({ title: "", description: "", category: "" });
 
   useEffect(() => {
     if (!supabase) { setUser(null); return; }
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    let active = true;
+    supabase.auth.getSession()
+      .then(({ data, error }) => {
+        if (error) throw error;
+        if (active) setUser(data.session?.user ?? null);
+      })
+      .catch((error) => {
+        console.error("Unable to check the admin sign-in.", error);
+        if (active) {
+          setAuthError("Unable to check your sign-in. Refresh the page or try again.");
+          setUser(null);
+        }
+      });
+    return () => { active = false; };
   }, []);
   useEffect(() => {
     if (!supabase || !user) return;
+    let active = true;
+    setRole(null);
     supabase.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
-      .then(({ data }) => setRole(data ? data.role : "student"));
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.error("Unable to verify the admin role.", error);
+          setMsg("Unable to verify your admin role. Check your connection and try again.");
+          setRole("error");
+          return;
+        }
+        setRole(data ? data.role : "student");
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error("Unable to verify the admin role.", error);
+        setMsg("Unable to verify your admin role. Check your connection and try again.");
+        setRole("error");
+      });
+    return () => { active = false; };
   }, [user]);
 
   async function reload() {
-    const c = await supabase.from("courses").select("*").order("created_at");
-    const l = await supabase.from("lessons").select("*").order("position");
-    setCourses(c.data || []); setLessons(l.data || []);
+    setLoadingCourses(true);
+    setCourseLoadError("");
+    try {
+      const [c, l] = await Promise.all([
+        supabase.from("courses").select("*").order("created_at"),
+        supabase.from("lessons").select("*").order("position"),
+      ]);
+      if (c.error || l.error) throw c.error || l.error;
+      setCourses(c.data || []);
+      setLessons(l.data || []);
+    } catch (error) {
+      console.error("Unable to load admin courses.", error);
+      setCourses([]);
+      setLessons([]);
+      setCourseLoadError("Could not load courses. Check your connection and try again.");
+    } finally {
+      setLoadingCourses(false);
+    }
   }
   const isTeacher = role === "teacher" || role === "admin";
   useEffect(() => { if (isTeacher) reload(); }, [isTeacher]);
@@ -66,10 +115,12 @@ export default function Admin() {
     }
   }
 
-  if (user === undefined) return <div className="wrap"><p className="muted">Loading...</p></div>;
-  if (!supabase) return <div className="wrap"><p>Supabase is not set. Add the keys to .env.local.</p></div>;
+  if (user === undefined) return <div className="wrap" role="status"><p className="muted">Checking sign-in...</p></div>;
+  if (authError) return <div className="wrap"><h1>Admin</h1><p role="alert">{authError}</p><Link className="btn" href="/login?next=%2Fadmin">Sign in</Link></div>;
+  if (!supabase) return <div className="wrap"><p role="alert">Supabase is not configured. Set the public Supabase URL and anon key in the environment, then rebuild.</p></div>;
   if (!user) return <div className="wrap"><h1>Admin</h1><p><Link href="/login?next=%2Fadmin">Log in to your admin account</Link></p></div>;
   if (role === null) return <div className="wrap"><p className="muted">Loading...</p></div>;
+  if (role === "error") return <div className="wrap"><h1>Admin</h1><p role="alert">{msg}</p></div>;
   if (!isTeacher) return <div className="wrap"><h1>Admin</h1><p>This page is for teachers only.</p></div>;
 
   return (
@@ -78,25 +129,30 @@ export default function Admin() {
       <p><Link className="btn" href="/creator-studio">Open Creator Studio</Link></p>
       <p><button className="alt" type="button" onClick={lockPortal}>Lock temporary admin access</button></p>
       <p className="muted">Changes show on the public site in about 1 minute.</p>
-      {msg && <p className="notice">{msg}</p>}
+      {msg && <p className="notice" role="status" aria-live="polite">{msg}</p>}
 
       {role === "admin" && <AdminControlCenter />}
 
       <div className="panel">
         <h2>New course</h2>
         <div className="form">
-          <input placeholder="Title" value={nc.title} onChange={(e) => setNc({ ...nc, title: e.target.value })} />
-          <input placeholder="Short description" value={nc.description} onChange={(e) => setNc({ ...nc, description: e.target.value })} />
-          <input placeholder="Category (for example: Basics)" value={nc.category} onChange={(e) => setNc({ ...nc, category: e.target.value })} />
+          <label htmlFor="new-course-title">Title</label>
+          <input id="new-course-title" placeholder="Title" value={nc.title} onChange={(e) => setNc({ ...nc, title: e.target.value })} />
+          <label htmlFor="new-course-description">Short description</label>
+          <input id="new-course-description" placeholder="Short description" value={nc.description} onChange={(e) => setNc({ ...nc, description: e.target.value })} />
+          <label htmlFor="new-course-category">Category</label>
+          <input id="new-course-category" placeholder="Category (for example: Basics)" value={nc.category} onChange={(e) => setNc({ ...nc, category: e.target.value })} />
           <div className="row"><button onClick={addCourse}>Make course</button></div>
         </div>
       </div>
 
+      {loadingCourses && <p className="muted" role="status">Loading courses...</p>}
+      {courseLoadError && <p className="notice" role="alert">{courseLoadError} <button className="alt" type="button" onClick={reload}>Try again</button></p>}
       {courses.map((c) => (
         <CourseEditor key={c.slug} course={c} lessons={lessons.filter((l) => l.course_slug === c.slug)}
           onPublish={() => togglePublish(c)} onDelete={() => deleteCourse(c)} reload={reload} setMsg={setMsg} />
       ))}
-      {!courses.length && <p className="muted">No courses yet. Make your first course above.</p>}
+      {!loadingCourses && !courseLoadError && !courses.length && <p className="muted">No courses yet. Make your first course above.</p>}
     </div>
   );
 }

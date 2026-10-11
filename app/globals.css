@@ -21,7 +21,7 @@ h1{font-size:clamp(2rem,4.4vw,3.1rem);font-weight:780;line-height:1.08}
 h2{font-size:1.5rem;font-weight:720}
 h3{font-size:1.1rem;font-weight:680}
 p{margin:.5em 0}
-:focus-visible{outline:3px solid var(--primary);outline-offset:2px;border-radius:6px}
+:focus-visible{outline:3px solid var(--primary);outline-offset:3px;border-radius:6px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 .muted{color:var(--muted)}
 .container{max-width:1200px;margin:0 auto;padding:0 24px}
@@ -161,6 +161,7 @@ p{margin:.5em 0}
 .notice{background:var(--primary-soft);border-left:4px solid var(--primary);padding:10px 14px;border-radius:8px}
 .auth-card{max-width:440px;margin:56px auto;padding:32px;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
 .auth-card h1{font-size:1.8rem}
+button:disabled{cursor:not-allowed}
 
 /* notes, quiz, comments, boards */
 .notes h3,.quiz h3,.comments h3,.materials h3{margin:0 0 10px}
@@ -215,3 +216,10 @@ p{margin:.5em 0}
 .creator-content{white-space:pre-wrap;overflow-wrap:anywhere}
 .creator-actions{display:flex;gap:8px;flex-shrink:0;align-self:flex-end}
 .icon-btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:560px){
+  .auth-card{margin:32px 16px;padding:24px}
+  .creator-material{flex-direction:column}
+  .creator-actions{align-self:flex-start;flex-wrap:wrap}
+  .xwrap{height:min(70vh,620px)}
+  .pdf{height:min(65vh,540px)}
+}

@@ -42,18 +42,20 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-card">
-      <h1>Welcome</h1>
+    <section className="auth-card" aria-labelledby="login-title">
+      <h1 id="login-title">Welcome</h1>
       <p className="muted">Log in to save your progress on all your devices.</p>
-      <div className="form">
-        <input type="email" aria-label="Email" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" aria-label="Password" placeholder="Password (6 or more characters)" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <form className="form" onSubmit={(event) => { event.preventDefault(); go("login"); }}>
+        <label htmlFor="login-email">Email</label>
+        <input id="login-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        <label htmlFor="login-password">Password</label>
+        <input id="login-password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         <div className="row">
-          <button disabled={busy} onClick={() => go("login")}>Log in</button>
-          <button disabled={busy} onClick={() => go("signup")}>Sign up</button>
+          <button type="submit" disabled={busy}>Log in</button>
+          <button type="button" disabled={busy} onClick={() => go("signup")}>Sign up</button>
         </div>
-        {msg && <p className="muted">{msg}</p>}
-      </div>
-    </div>
+        {msg && <p className="notice" role="status" aria-live="polite">{msg}</p>}
+      </form>
+    </section>
   );
 }

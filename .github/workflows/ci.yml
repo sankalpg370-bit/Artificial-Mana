@@ -21,6 +21,10 @@ jobs:
           cache: npm
       - name: Install packages
         run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck security boundaries
+        run: npm run typecheck
       - name: Run tests
         run: npm test
       - name: Build the site

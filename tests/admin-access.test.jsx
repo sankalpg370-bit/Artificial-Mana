@@ -14,6 +14,7 @@ import AuthButton from "../app/AuthButton";
 
 afterEach(() => {
   state.current = null;
+  vi.restoreAllMocks();
 });
 
 describe("Admin access", () => {
@@ -42,6 +43,19 @@ describe("Admin access", () => {
     expect(await screen.findByText("teacher@example.com")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Management system" })).not.toBeInTheDocument();
+  });
+
+  it("shows a helpful message when sign-out fails", async () => {
+    state.current = makeFake({
+      user: { id: "teacher-1", email: "teacher@example.com" },
+    });
+    state.current.auth.signOut = vi.fn().mockResolvedValue({ error: new Error("offline") });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<AuthButton />);
+    fireEvent.click(await screen.findByRole("button", { name: "Log out" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Could not log out. Please try again.");
   });
 
   it("shows full data controls only to an admin", async () => {

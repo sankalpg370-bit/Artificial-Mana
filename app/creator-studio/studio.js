@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 
@@ -55,26 +55,33 @@ export default function CreatorStudio() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     if (!supabase) {
       setUser(null);
       return;
     }
+    let active = true;
     supabase.auth.getSession()
       .then(({ data, error }) => {
         if (error) throw error;
-        setUser(data.session?.user ?? null);
+        if (active) setUser(data.session?.user ?? null);
       })
       .catch((error) => {
         console.error("Unable to check creator sign-in.", error);
-        setUser(null);
-        setMessage(`Unable to check sign-in: ${errorMessage(error)}`);
+        if (active) {
+          setUser(null);
+          setMessage(`Unable to check sign-in: ${errorMessage(error)}`);
+        }
       });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (active) setUser(session?.user ?? null);
     });
-    return () => subscription.subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -102,8 +109,9 @@ export default function CreatorStudio() {
     return () => { active = false; };
   }, [user]);
 
-  async function reload() {
+  const reload = useCallback(async () => {
     setLoading(true);
+    setLoadError("");
     try {
       const [courseResult, lessonResult, resourceResult] = await Promise.all([
         supabase.from("courses").select("slug,title").order("created_at"),
@@ -123,21 +131,23 @@ export default function CreatorStudio() {
         return { ...resource, signed_file_url: data.signedUrl };
       }));
       setResources(resourcesWithFiles);
+      setMessage("");
       return true;
     } catch (error) {
       console.error("Unable to load creator materials.", error);
+      setLoadError("Could not load creator materials. Check your connection and try again.");
       setMessage(`Could not load creator materials: ${errorMessage(error)}. Make sure the creator materials database setup has been applied.`);
       return false;
     } finally {
       setLoading(false);
     }
-  }
+  }, [user]);
 
   const isCreator = role === "teacher" || role === "admin";
 
   useEffect(() => {
     if (isCreator) reload();
-  }, [isCreator]);
+  }, [isCreator, reload]);
 
   const formLessons = useMemo(
     () => lessons.filter((lesson) => lesson.course_slug === form.course_slug),
@@ -284,10 +294,10 @@ export default function CreatorStudio() {
   }
 
   if (user === undefined) return <div className="wrap"><p className="muted">Checking sign-in...</p></div>;
-  if (!supabase) return <div className="wrap"><h1>Creator Studio</h1><p>Sign-in and creator storage are not configured. Add the Supabase keys to .env.local.</p></div>;
-  if (!user) return <div className="wrap"><h1>Creator Studio</h1><p>You must sign in with a creator account to access this page.</p><Link className="btn" href="/login">Log in</Link></div>;
+  if (!supabase) return <div className="wrap"><h1>Creator Studio</h1><p role="alert">Sign-in and creator storage are not configured. Set the public Supabase URL and anon key in the environment, then rebuild.</p></div>;
+  if (!user) return <div className="wrap"><h1>Creator Studio</h1>{message && <p role="alert">{message}</p>}<p>You must sign in with a creator account to access this page.</p><Link className="btn" href="/login">Log in</Link></div>;
   if (role === null) return <div className="wrap"><p className="muted">Verifying creator access...</p></div>;
-  if (!isCreator) return <div className="wrap"><h1>Creator Studio</h1><p role="alert">This page is only available to teacher and admin accounts.</p></div>;
+  if (!isCreator) return <div className="wrap"><h1>Creator Studio</h1><p role="alert">{message || "This page is only available to teacher and admin accounts."}</p></div>;
 
   return (
     <div className="wrap creator-studio">
@@ -348,7 +358,8 @@ export default function CreatorStudio() {
       <section className="creator-material-list">
         <h2>Saved materials</h2>
         {loading && <p className="muted">Loading materials...</p>}
-        {!loading && resources.length === 0 && <p className="muted">No materials yet.</p>}
+        {loadError && <p className="notice" role="alert">{loadError} <button className="alt" type="button" disabled={loading} onClick={reload}>Try again</button></p>}
+        {!loading && !loadError && resources.length === 0 && <p className="muted">No materials yet.</p>}
         {resources.map((resource) => {
           const course = courses.find((item) => item.slug === resource.course_slug);
           const lesson = lessons.find((item) => item.id === resource.lesson_id);

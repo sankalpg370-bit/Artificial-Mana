@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
 const TABLES = [
@@ -26,28 +26,37 @@ export default function AdminControlCenter() {
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  async function reload() {
-    if (!supabase) return;
+  const reload = useCallback(async () => {
+    if (!supabase) {
+      setRows([]);
+      setMessage("Supabase is not configured.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setMessage("");
-    const start = page * PAGE_SIZE;
-    const { data, error } = await supabase.from(table.name).select("*")
-      .order(table.order, { ascending: false })
-      .range(start, start + PAGE_SIZE - 1);
-    if (error) {
-      setRows([]);
-      setMessage(`Could not load ${table.label.toLowerCase()}: ${error.message}`);
-    } else {
+    try {
+      const start = page * PAGE_SIZE;
+      const { data, error } = await supabase.from(table.name).select("*")
+        .order(table.order, { ascending: false })
+        .range(start, start + PAGE_SIZE - 1);
+      if (error) throw error;
       setRows(data || []);
       setHasMore((data || []).length === PAGE_SIZE);
+    } catch (error) {
+      console.error(`Unable to load ${table.label.toLowerCase()}.`, error);
+      setRows([]);
+      setHasMore(false);
+      setMessage(`Could not load ${table.label.toLowerCase()}. Check your connection and try again.`);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }
+  }, [page, table]);
 
-  useEffect(() => { reload(); }, [table, page]);
+  useEffect(() => { reload(); }, [reload]);
 
   function selectTable(nextTable) {
     setTable(nextTable);

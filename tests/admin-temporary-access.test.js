@@ -39,11 +39,12 @@ describe("temporary admin access", () => {
     process.env.ADMIN_TEMP_ACCESS_KEY = "temporary-test-key";
     const response = await POST(new Request("http://localhost/api/admin-access", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { origin: "http://localhost", "content-type": "application/json" },
       body: JSON.stringify({ key: "temporary-test-key" }),
     }));
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const setCookie = response.headers.get("set-cookie");
     expect(setCookie).toContain(`${ADMIN_ACCESS_COOKIE}=`);
     expect(setCookie).toContain("HttpOnly");
@@ -68,6 +69,23 @@ describe("temporary admin access", () => {
       body: JSON.stringify({ key: "temporary-test-key" }),
     }));
     expect(disabled.status).toBe(503);
+  });
+
+  it("rejects cross-origin unlock attempts and oversized bodies", async () => {
+    process.env.ADMIN_TEMP_ACCESS_KEY = "temporary-test-key";
+    const crossOrigin = await POST(new Request("http://localhost/api/admin-access", {
+      method: "POST",
+      headers: { origin: "https://attacker.example", "content-type": "application/json" },
+      body: JSON.stringify({ key: "temporary-test-key" }),
+    }));
+    expect(crossOrigin.status).toBe(403);
+
+    const oversized = await POST(new Request("http://localhost/api/admin-access", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: "x".repeat(1100) }),
+    }));
+    expect(oversized.status).toBe(413);
   });
 
   it("redirects requests without a valid portal cookie and allows valid cookies", () => {

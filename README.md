@@ -27,7 +27,7 @@ Open `data/courses.js`. Add a lesson. Write its title and its YouTube ID.
 See `artificialmana-guide.html` for the steps.
 
 ## Important
-Never upload `.env.local` to GitHub.
+Environment files are ignored by Git. Keep real credentials out of source control; `.env.local.example` contains placeholders only.
 
 ## Quizzes, search, and categories
 Add a `quiz` list to a lesson in `data/courses.js`. Add a `category` to a course. The home page makes a search box and category buttons by itself.
@@ -84,8 +84,9 @@ A teacher draws on the **teacher board** of a lesson. Every student can open it 
 Logged-in students can ask questions and reply under each lesson. Teachers can delete any comment and show a Teacher badge. A user can post 5 comments in one minute. Run `supabase-step10.sql` first.
 
 ## Tests
-Run `npm test` to run 63 automatic tests. They use a fake database.
+Run `npm test` to run the automatic tests. They use a fake database.
 They check pages, progress, quizzes, notes, uploads, privacy, and account access.
+Run `npm run lint` for the Next.js ESLint rules and `npm run typecheck` to check the temporary-admin security boundary.
 
 ## Browser tests
 Use a separate Supabase test project. Never use your live project.
@@ -102,7 +103,7 @@ Use a separate Supabase test project. Never use your live project.
 The browser test creates a student, a published course, a comment, and an uploaded file.
 These records stay in the test project. Use a test project that contains no real user data.
 The test simulates the YouTube video-ended event. It does not play the full video.
-GitHub Actions runs `npm test` and `npm run build` on pushes and pull requests.
+GitHub Actions runs `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` on pushes and pull requests.
 
 ## File types for creator uploads (step 14)
 Run `database-steps/supabase-step14.sql` once. Creators can upload PDF, Word, PowerPoint, Excel, CSV, text, Markdown, EPUB, ZIP, and images (PNG, JPG, WEBP, GIF) up to 25 MB. The page checks file extensions and declared MIME types; Supabase limits the declared MIME types and size it accepts. Neither check scans file contents, so do not treat it as malware detection. HTML and SVG extensions are not accepted.
