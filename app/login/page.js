@@ -12,13 +12,28 @@ export default function Login() {
 
   async function go(mode) {
     if (!supabase) { setMsg("The Supabase keys are not set. Add them to .env.local."); return; }
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setMsg("Enter your email and password to continue.");
+      return;
+    }
+    if (mode === "signup" && password.length < 6) {
+      setMsg("Your password must be at least 6 characters long.");
+      return;
+    }
     setBusy(true); setMsg("");
-    const fn = mode === "signup" ? supabase.auth.signUp : supabase.auth.signInWithPassword;
-    const { data, error } = await fn.call(supabase.auth, { email, password });
-    setBusy(false);
-    if (error) { setMsg(error.message); return; }
-    if (mode === "signup" && !data.session) { setMsg("Your account is made. Open the email we sent and confirm it. Then log in."); return; }
-    router.push("/");
+    try {
+      const fn = mode === "signup" ? supabase.auth.signUp : supabase.auth.signInWithPassword;
+      const { data, error } = await fn.call(supabase.auth, { email: cleanEmail, password });
+      if (error) { setMsg(error.message); return; }
+      if (mode === "signup" && !data.session) { setMsg("Your account is made. Open the email we sent and confirm it. Then log in."); return; }
+      router.push("/");
+    } catch (error) {
+      console.error("Unable to authenticate with Supabase.", error);
+      setMsg("Could not reach the sign-in service. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -26,8 +41,8 @@ export default function Login() {
       <h1>Welcome</h1>
       <p className="muted">Log in to save your progress on all your devices.</p>
       <div className="form">
-        <input type="email" aria-label="Email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input type="password" aria-label="Password" placeholder="Password (6 or more characters)" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <input type="email" aria-label="Email" placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" aria-label="Password" placeholder="Password (6 or more characters)" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
         <div className="row">
           <button disabled={busy} onClick={() => go("login")}>Log in</button>
           <button disabled={busy} onClick={() => go("signup")}>Sign up</button>
