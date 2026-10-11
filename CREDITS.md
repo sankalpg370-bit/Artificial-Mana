@@ -15,5 +15,7 @@ This project uses open-source code. Each part keeps its own license.
 | Vercel Analytics (@vercel/analytics) | Page view counts | MIT |
 | Inter font (@fontsource-variable/inter) | Text font, hosted by the site itself | OFL-1.1 |
 
+The temporary admin access gate uses built-in Next.js and Node.js features. It adds no new package.
+
 Rule: add only MIT, Apache 2.0, or BSD code. Fonts under the OFL license are also fine. Check the license before you add a library.
 Add each new library to this table.

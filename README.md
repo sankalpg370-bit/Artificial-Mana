@@ -50,6 +50,19 @@ Each lesson also has a diagram board (Excalidraw, MIT license). See `CREDITS.md`
 
 If Supabase has no published course, the site shows the sample course from `data/courses.js`.
 
+## Temporary admin access
+The admin page has an extra temporary key gate. It does not replace Supabase login or the admin role.
+1. Make a strong key on your computer with `openssl rand -base64 32`.
+2. Set it as `ADMIN_TEMP_ACCESS_KEY` in your ignored `.env.local` file for local checks.
+3. Add the same server-only setting to Vercel only if you need the gate on a deployed site.
+4. Open `/admin/access`, enter the key, then sign in with an existing admin account.
+5. The access cookie expires after 2 hours. Use **Lock temporary admin access** to end it sooner.
+6. Remove `ADMIN_TEMP_ACCESS_KEY` from local settings and Vercel when your review is done.
+
+Do not put the key in a `NEXT_PUBLIC_` variable or in Git. The key only opens the portal page.
+Supabase login, the admin role, and database policies still control admin data and actions.
+This is a temporary UI gate, not a second factor for an admin who is already signed in.
+
 ## Creator Studio
 Run `database-steps/supabase-step11.sql` once in the Supabase SQL Editor (or use the updated `supabase-all.sql` for a new setup). Sign in with a teacher or admin account, open **Admin**, then choose **Open Creator Studio**. The unlisted `/creator-studio` page lets creators add links, assignments, notes, and files to a course or lesson. Only materials marked **Visible to learners** appear on published courses.
 
@@ -71,7 +84,7 @@ A teacher draws on the **teacher board** of a lesson. Every student can open it 
 Logged-in students can ask questions and reply under each lesson. Teachers can delete any comment and show a Teacher badge. A user can post 5 comments in one minute. Run `supabase-step10.sql` first.
 
 ## Tests
-Run `npm test` to run 57 automatic tests. They use a fake database.
+Run `npm test` to run 63 automatic tests. They use a fake database.
 They check pages, progress, quizzes, notes, uploads, privacy, and account access.
 
 ## Browser tests

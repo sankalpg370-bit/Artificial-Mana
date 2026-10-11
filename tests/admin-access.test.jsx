@@ -6,6 +6,9 @@ vi.mock("../lib/supabase", async () => {
   const { state } = await import("./fake-supabase.js");
   return { get supabase() { return state.current; } };
 });
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+}));
 import Admin from "../app/admin/page";
 
 afterEach(() => {

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import AdminControlCenter from "./AdminControlCenter";
 
@@ -13,6 +14,7 @@ function ytId(v) {
 const emptyQ = () => ({ q: "", options: ["", "", "", ""], answer: 0 });
 
 export default function Admin() {
+  const router = useRouter();
   const [user, setUser] = useState(undefined);
   const [role, setRole] = useState(null);
   const [courses, setCourses] = useState([]);
@@ -55,10 +57,22 @@ export default function Admin() {
     const { error } = await supabase.from("courses").delete().eq("slug", c.slug);
     if (error) setMsg(error.message); else reload();
   }
+  async function lockPortal() {
+    try {
+      const response = await fetch("/api/admin-access", { method: "DELETE" });
+      if (!response.ok) {
+        setMsg("Could not lock the temporary admin portal. Close this browser tab and try again.");
+        return;
+      }
+      router.replace("/admin/access");
+    } catch {
+      setMsg("Could not reach the admin access service. Try again.");
+    }
+  }
 
   if (user === undefined) return <div className="wrap"><p className="muted">Loading...</p></div>;
   if (!supabase) return <div className="wrap"><p>Supabase is not set. Add the keys to .env.local.</p></div>;
-  if (!user) return <div className="wrap"><h1>Admin</h1><p>Log in first.</p></div>;
+  if (!user) return <div className="wrap"><h1>Admin</h1><p><Link href="/login?next=%2Fadmin">Log in to your admin account</Link></p></div>;
   if (role === null) return <div className="wrap"><p className="muted">Loading...</p></div>;
   if (!isTeacher) return <div className="wrap"><h1>Admin</h1><p>This page is for teachers only.</p></div>;
 
@@ -66,6 +80,7 @@ export default function Admin() {
     <div className="wrap">
       <h1>Admin</h1>
       <p><Link className="btn" href="/creator-studio">Open Creator Studio</Link></p>
+      <p><button className="alt" type="button" onClick={lockPortal}>Lock temporary admin access</button></p>
       <p className="muted">Changes show on the public site in about 1 minute.</p>
       {msg && <p className="notice">{msg}</p>}
 

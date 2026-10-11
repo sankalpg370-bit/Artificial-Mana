@@ -27,7 +27,12 @@ export default function Login() {
       const { data, error } = await fn.call(supabase.auth, { email: cleanEmail, password });
       if (error) { setMsg(error.message); return; }
       if (mode === "signup" && !data.session) { setMsg("Your account is made. Open the email we sent and confirm it. Then log in."); return; }
-      router.push("/");
+      const next = new URLSearchParams(window.location.search).get("next");
+      const requested = new URL(next || "/", window.location.origin);
+      const destination = requested.origin === window.location.origin
+        ? `${requested.pathname}${requested.search}${requested.hash}`
+        : "/";
+      router.push(destination);
     } catch (error) {
       console.error("Unable to authenticate with Supabase.", error);
       setMsg("Could not reach the sign-in service. Check your connection and try again.");

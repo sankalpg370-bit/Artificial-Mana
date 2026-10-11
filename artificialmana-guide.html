@@ -43,7 +43,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <main>
 
 <h1>Artificial Mana</h1>
-<p class="muted">Complete project guide. Site: artificialmana.com. Version 15.</p>
+<p class="muted">Complete project guide. Site: artificialmana.com. Version 16.</p>
 
 <nav>
 <strong>Contents</strong>
@@ -151,6 +151,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <tr><td>13</td><td>Rich notes</td><td>Use bold, italic, headings, lists, quotes, and code in notes.</td></tr>
 <tr><td>14</td><td>Questions and comments</td><td>Ask a question under a lesson. Reply. Teachers show a badge.</td></tr>
 <tr><td>15</td><td>About and Privacy pages</td><td>Tell students who you are and how you keep their data.</td></tr>
+<tr><td>16</td><td>Temporary admin gate</td><td>Open the admin portal with a short-lived key, then use your admin account.</td></tr>
 </table>
 </div>
 
@@ -165,9 +166,11 @@ svg .s{font-size:13px;fill:var(--muted)}
 <tr><td>Delete any comment</td><td class="no">No</td><td class="no">No (own only)</td><td class="yes">Yes</td></tr>
 <tr><td>Draw on the teacher board</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
 <tr><td>Use the Admin page</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+<tr><td>Open the temporary admin gate</td><td class="yes">Key only</td><td class="yes">Key only</td><td class="yes">Key and admin role</td></tr>
 </table>
 </div>
 <p class="muted">In this version, "teacher" and "admin" have the same rights. A user cannot change their own role. Only you can, in Supabase.</p>
+<p class="muted">The temporary key does not grant admin powers. Supabase login and the admin role are still required.</p>
 
 <h2 id="data">6. Database tables</h2>
 <div class="scroll">
@@ -197,6 +200,17 @@ svg .s{font-size:13px;fill:var(--muted)}
 <li>Click <strong>Publish</strong>. The public site shows the course in about 1 minute.</li>
 </ol>
 <p>Use the arrows to move a lesson. Use <strong>Edit</strong> to change a lesson. A course needs one lesson or more to show on the site.</p>
+
+<h3>Temporary admin access key</h3>
+<ol>
+<li>Make a strong key on your computer with <code>openssl rand -base64 32</code>.</li>
+<li>Set it as <code>ADMIN_TEMP_ACCESS_KEY</code> in the ignored <code>.env.local</code> file.</li>
+<li>Open <code>/admin/access</code>. Enter the key.</li>
+<li>Sign in with an account that already has the admin role.</li>
+<li>The access cookie expires after 2 hours. Use <strong>Lock temporary admin access</strong> to end it sooner.</li>
+<li>Remove <code>ADMIN_TEMP_ACCESS_KEY</code> when your review is done.</li>
+</ol>
+<p>Do not put this key in a <code>NEXT_PUBLIC_</code> setting or Git. It does not replace Supabase login or database rules. This is a temporary UI gate, not a second factor for an admin who is already signed in.</p>
 
 <h2 id="computer">8. Set up on your computer</h2>
 <ol>
@@ -241,6 +255,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <h2 id="safety">11. Safety rules</h2>
 <ul>
 <li>Never share <code>.env.local</code>. Never upload it to GitHub.</li>
+<li>Keep <code>ADMIN_TEMP_ACCESS_KEY</code> server-only. Remove it after the review.</li>
 <li>The anon key is public by design. The database rules (RLS) protect the data.</li>
 <li>A user cannot change their own role. A user cannot fake the Teacher badge.</li>
 <li>Notes keep only safe formats. Scripts and links are removed.</li>
@@ -315,6 +330,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <tr><td>Supabase keys</td><td><code>.env.local</code> on your computer. Environment Variables in Vercel.</td></tr>
 <tr><td>Tests</td><td>The <code>tests</code> folder. Run <code>npm test</code>.</td></tr>
 <tr><td>Search-engine files</td><td><code>app/sitemap.js</code>, <code>app/robots.js</code></td></tr>
+<tr><td>Temporary admin access</td><td><code>app/admin/access/page.js</code>, <code>app/api/admin-access/route.js</code></td></tr>
 <tr><td>List of changes</td><td><code>CHANGELOG.md</code></td></tr>
 </table>
 </div>
