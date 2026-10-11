@@ -13,6 +13,7 @@ export default function Classroom({ course }) {
   const [done, setDone] = useState([]);
   const [autoplay, setAutoplay] = useState(true);
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(!supabase);
   const [notes, setNotes] = useState([]);
   const [qtick, setQtick] = useState(0);
   const [quizOk, setQuizOk] = useState(false);
@@ -27,46 +28,68 @@ export default function Classroom({ course }) {
   const key = "progress:" + course.slug;
 
   useEffect(() => {
-    try { setDone(JSON.parse(localStorage.getItem(key)) || []); } catch (e) {}
-  }, [key]);
-
-  useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => setUser(sess?.user ?? null));
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) console.error("Unable to check the current session.", error);
+      setUser(data?.session?.user ?? null);
+      setAuthReady(true);
+    }).catch((error) => {
+      console.error("Unable to check the current session.", error);
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => {
+      setUser(sess?.user ?? null);
+      setAuthReady(true);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!supabase || !user) return;
-    supabase.from("progress").select("lesson_id").eq("course_slug", course.slug).then(({ data }) => {
-      const server = (data || []).map((r) => r.lesson_id);
-      setDone((d) => [...new Set([...d, ...server])]);
-      // Lessons finished before login: copy them to the account.
-      let local = [];
-      try { local = JSON.parse(localStorage.getItem(key)) || []; } catch (e) {}
-      const valid = new Set(course.lessons.map((l) => l.id));
-      const missing = local.filter((id) => valid.has(id) && !server.includes(id));
-      if (missing.length) {
-        supabase.from("progress").upsert(
-          missing.map((id) => ({ user_id: user.id, course_slug: course.slug, lesson_id: id })),
-          { onConflict: "user_id,course_slug,lesson_id" }
-        ).then(() => {});
+    if (!authReady) return;
+    if (!supabase || !user) {
+      try { setDone(JSON.parse(localStorage.getItem(key)) || []); } catch (error) {
+        console.error("Unable to load local lesson progress.", error);
+        setDone([]);
       }
-    });
-  }, [user, course.slug]);
+      return;
+    }
+    setDone([]);
+    let active = true;
+    supabase.from("progress").select("lesson_id").eq("user_id", user.id).eq("course_slug", course.slug)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          console.error("Unable to load account lesson progress.", error);
+          setDone([]);
+          return;
+        }
+        setDone((data || []).map((row) => row.lesson_id));
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error("Unable to load account lesson progress.", error);
+        setDone([]);
+      });
+    return () => { active = false; };
+  }, [key, authReady, user, course.slug]);
 
   function markDone(id) {
     if (supabase && user) {
       supabase.from("progress").upsert(
         { user_id: user.id, course_slug: course.slug, lesson_id: id },
         { onConflict: "user_id,course_slug,lesson_id" }
-      ).then(() => {});
+      ).then(({ error }) => {
+        if (error) console.error("Unable to save account lesson progress.", error);
+      }).catch((error) => console.error("Unable to save account lesson progress.", error));
     }
     setDone((d) => {
       if (d.includes(id)) return d;
       const n = [...d, id];
-      try { localStorage.setItem(key, JSON.stringify(n)); } catch (e) {}
+      if (!supabase || !user) {
+        try { localStorage.setItem(key, JSON.stringify(n)); } catch (error) {
+          console.error("Unable to save local lesson progress.", error);
+        }
+      }
       return n;
     });
   }
@@ -108,8 +131,16 @@ export default function Classroom({ course }) {
 
   useEffect(() => {
     if (supabase && user) {
-      supabase.from("notes").select("id,seconds,content").eq("course_slug", course.slug)
-        .eq("lesson_id", lesson.id).order("seconds").then(({ data }) => setNotes(data || []));
+      setNotes([]);
+      supabase.from("notes").select("id,seconds,content").eq("user_id", user.id).eq("course_slug", course.slug)
+        .eq("lesson_id", lesson.id).order("seconds").then(({ data, error }) => {
+          if (error) {
+            console.error("Unable to load your saved notes.", error);
+            setNotes([]);
+            return;
+          }
+          setNotes(data || []);
+        });
     } else {
       try { setNotes(JSON.parse(localStorage.getItem(nkey)) || []); } catch (e) { setNotes([]); }
     }
@@ -132,7 +163,7 @@ export default function Classroom({ course }) {
     }
   }
   async function deleteNote(id) {
-    if (supabase && user) await supabase.from("notes").delete().eq("id", id);
+    if (supabase && user) await supabase.from("notes").delete().eq("user_id", user.id).eq("id", id);
     if (supabase && user) setNotes((n) => n.filter((x) => x.id !== id));
     else saveLocal(notes.filter((x) => x.id !== id));
   }
@@ -150,7 +181,7 @@ export default function Classroom({ course }) {
     }
     let active = true;
     supabase.from("creator_materials")
-      .select("id,lesson_id,kind,title,content,url,file_url")
+      .select("id,lesson_id,kind,title,content,url,file_url,storage_path")
       .eq("course_slug", course.slug)
       .eq("published", true)
       .order("created_at")
@@ -161,8 +192,22 @@ export default function Classroom({ course }) {
           setMaterialsError("Course materials are temporarily unavailable.");
           return;
         }
-        setCreatorMaterials(data || []);
-        setMaterialsError("");
+        Promise.all((data || []).map(async (material) => {
+          if (!material.storage_path) return material;
+          const { data: file, error: fileError } = await supabase.storage
+            .from("creator-materials").createSignedUrl(material.storage_path, 3600);
+          if (fileError) throw fileError;
+          return { ...material, signed_file_url: file.signedUrl };
+        })).then((materials) => {
+          if (!active) return;
+          setCreatorMaterials(materials);
+          setMaterialsError("");
+        }).catch((fileError) => {
+          if (!active) return;
+          console.error("Unable to create access links for creator materials.", fileError);
+          setCreatorMaterials(data || []);
+          setMaterialsError("Some course files are temporarily unavailable.");
+        });
       })
       .catch((error) => {
         if (!active) return;
@@ -178,7 +223,8 @@ export default function Classroom({ course }) {
     const pass = (r) => !!r && r.total > 0 && r.score / r.total >= 0.6;
     if (!need.length) { setQuizOk(true); return; }
     if (supabase && user) {
-      supabase.from("quiz_results").select("lesson_id,score,total").eq("course_slug", course.slug).then(({ data }) => {
+      setQuizOk(false);
+      supabase.from("quiz_results").select("lesson_id,score,total").eq("user_id", user.id).eq("course_slug", course.slug).then(({ data }) => {
         const m = {};
         (data || []).forEach((r) => { m[r.lesson_id] = r; });
         setQuizOk(need.every((l) => pass(m[l.id])));
@@ -212,6 +258,8 @@ export default function Classroom({ course }) {
   // Load the bookmark and the last lesson. Then open that lesson.
   useEffect(() => {
     loaded.current = false;
+    cs.current = { bookmarked: false, last: null };
+    setBookmarked(false);
     function apply(st) {
       cs.current = { bookmarked: !!st.bookmarked, last: st.last || null };
       setBookmarked(!!st.bookmarked);
@@ -238,7 +286,13 @@ export default function Classroom({ course }) {
   async function exportNotes() {
     const all = {};
     if (supabase && user) {
-      const { data } = await supabase.from("notes").select("lesson_id,seconds,content").eq("course_slug", course.slug).order("seconds");
+      const { data, error } = await supabase.from("notes").select("lesson_id,seconds,content")
+        .eq("user_id", user.id).eq("course_slug", course.slug).order("seconds");
+      if (error) {
+        console.error("Unable to export your saved notes.", error);
+        alert("Your notes could not be loaded for export. Please try again.");
+        return;
+      }
       (data || []).forEach((n) => { (all[n.lesson_id] = all[n.lesson_id] || []).push(n); });
     } else {
       course.lessons.forEach((l) => {
@@ -311,7 +365,7 @@ export default function Classroom({ course }) {
                 {material.content && <p className="creator-content">{material.content}</p>}
                 <div className="row">
                   {material.url && <a className="btn" href={material.url} target="_blank" rel="noopener noreferrer">Open link</a>}
-                  {material.file_url && <a className="btn" href={material.file_url} target="_blank" rel="noopener noreferrer">Open file</a>}
+                  {(material.signed_file_url || material.file_url) && <a className="btn" href={material.signed_file_url || material.file_url} target="_blank" rel="noopener noreferrer">Open file</a>}
                 </div>
               </article>
             ))}

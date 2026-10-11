@@ -102,7 +102,14 @@ export default function CreatorStudio() {
       if (failed) throw new Error(failed.error.message);
       setCourses(courseResult.data || []);
       setLessons(lessonResult.data || []);
-      setResources(resourceResult.data || []);
+      const resourcesWithFiles = await Promise.all((resourceResult.data || []).map(async (resource) => {
+        if (!resource.storage_path) return resource;
+        const { data, error } = await supabase.storage.from("creator-materials")
+          .createSignedUrl(resource.storage_path, 3600);
+        if (error) throw new Error(error.message);
+        return { ...resource, signed_file_url: data.signedUrl };
+      }));
+      setResources(resourcesWithFiles);
       return true;
     } catch (error) {
       console.error("Unable to load creator materials.", error);
@@ -194,7 +201,7 @@ export default function CreatorStudio() {
           upsert: false,
         });
         if (upload.error) throw new Error(upload.error.message);
-        fileUrl = supabase.storage.from("creator-materials").getPublicUrl(uploadedPath).data.publicUrl;
+        fileUrl = null;
         storagePath = uploadedPath;
       }
       const row = {
@@ -335,7 +342,7 @@ export default function CreatorStudio() {
                 <h3>{resource.title}</h3>
                 {resource.content && <p className="creator-content">{resource.content}</p>}
                 {resource.url && <a href={resource.url} target="_blank" rel="noopener noreferrer">{resource.url}</a>}
-                {resource.file_url && <p><a href={resource.file_url} target="_blank" rel="noopener noreferrer">Open attached file</a></p>}
+                {(resource.signed_file_url || resource.file_url) && <p><a href={resource.signed_file_url || resource.file_url} target="_blank" rel="noopener noreferrer">Open attached file</a></p>}
               </div>
               <div className="creator-actions">
                 <button className="tb" type="button" onClick={() => editResource(resource)}>Edit</button>

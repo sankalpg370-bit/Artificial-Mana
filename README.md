@@ -51,7 +51,10 @@ Each lesson also has a diagram board (Excalidraw, MIT license). See `CREDITS.md`
 If Supabase has no published course, the site shows the sample course from `data/courses.js`.
 
 ## Creator Studio
-Run `database-steps/supabase-step11.sql` once in the Supabase SQL Editor (or use the updated `supabase-all.sql` for a new setup). Sign in with a teacher or admin account, open **Admin**, then choose **Open Creator Studio**. The unlisted `/creator-studio` page lets creators add links, assignments, notes, and files to a course or lesson. Only materials marked **Visible to learners** appear on course pages.
+Run `database-steps/supabase-step11.sql` once in the Supabase SQL Editor (or use the updated `supabase-all.sql` for a new setup). Sign in with a teacher or admin account, open **Admin**, then choose **Open Creator Studio**. The unlisted `/creator-studio` page lets creators add links, assignments, notes, and files to a course or lesson. Only materials marked **Visible to learners** appear on published courses.
+
+## Privacy and row access
+Run `database-steps/supabase-step12.sql` in Supabase after steps 5-11 to reapply strict owner-only access to account profiles, lesson progress, notes, bookmarks, quiz scores, personal boards, and creator drafts. Supabase row-level security keeps each account's records separate. Comments are readable by everyone, while course content, published creator materials, and teacher boards remain public. Creator uploads are stored privately; learners receive temporary links only to files attached to published materials. Logged-in account progress is no longer mixed with unsigned browser-only progress.
 
 ## Certificates
 A student gets a certificate PDF after all lessons are done and every quiz has a score of 60% or more. The certificate prints English letters only.

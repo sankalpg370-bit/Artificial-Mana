@@ -95,6 +95,8 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
   useEffect(() => {
     if (!open) return;
     loaded.current = false;
+    cur.current = [];
+    setStrokes([]);
     const apply = (d) => {
       const st = (d && d.strokes) || [];
       cur.current = st; hist.current = []; fut.current = [];
@@ -109,7 +111,7 @@ export default function Whiteboard({ slug, lessonId, user, canEdit }) {
       return;
     }
     if (supabase && user) {
-      supabase.from("boards").select("data").eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle()
+      supabase.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", lessonId).maybeSingle()
         .then(({ data }) => apply(data && data.data));
     } else {
       let d = null;

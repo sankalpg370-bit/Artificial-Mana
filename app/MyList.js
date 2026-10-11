@@ -17,7 +17,13 @@ export default function MyList({ courses }) {
   useEffect(() => {
     const m = {};
     if (supabase && user) {
-      supabase.from("course_state").select("course_slug,bookmarked,last_lesson").then(({ data }) => {
+      setStates({});
+      supabase.from("course_state").select("course_slug,bookmarked,last_lesson").eq("user_id", user.id).then(({ data, error }) => {
+        if (error) {
+          console.error("Unable to load your saved courses.", error);
+          setStates({});
+          return;
+        }
         (data || []).forEach((r) => { m[r.course_slug] = { bookmarked: r.bookmarked, last: r.last_lesson }; });
         setStates(m);
       });

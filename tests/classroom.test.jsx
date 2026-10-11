@@ -95,13 +95,14 @@ describe("Classroom", () => {
     await u.click(screen.getByRole("button", { name: /Saved/ }));
     expect(JSON.parse(localStorage.getItem("state:intro")).bookmarked).toBe(false);
   });
-  it("copies progress made before login into the account", async () => {
+  it("keeps browser-only progress separate from the signed-in account", async () => {
     localStorage.setItem("progress:intro", JSON.stringify(["l1", "l2", "gone"]));
     const fake = makeFake({ user: { id: "u1" }, rows: { progress: [{ user_id: "u1", course_slug: "intro", lesson_id: "l2" }] } });
     state.current = fake;
     render(<Classroom course={course} />);
-    await waitFor(() => expect(fake.db.progress.map((r) => r.lesson_id).sort()).toEqual(["l1", "l2"]));
-    expect(screen.getByText(/2 of 3 lessons done/)).toBeInTheDocument(); // "gone" is not a lesson of this course
+    expect(await screen.findByText(/1 of 3 lessons done/)).toBeInTheDocument();
+    expect(fake.db.progress.map((r) => r.lesson_id)).toEqual(["l2"]);
+    expect(JSON.parse(localStorage.getItem("progress:intro"))).toEqual(["l1", "l2", "gone"]);
   });
   it("shows the certificate only after all lessons are done", async () => {
     localStorage.setItem("progress:intro", JSON.stringify(["l1", "l2", "l3"]));

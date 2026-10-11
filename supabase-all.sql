@@ -224,31 +224,72 @@ create index if not exists creator_materials_course_idx
 alter table creator_materials enable row level security;
 drop policy if exists "read published creator materials" on creator_materials;
 create policy "read published creator materials" on creator_materials
-  for select using (published or is_teacher());
+  for select using (
+    creator_id = auth.uid()
+    or (
+      published and exists (
+        select 1 from courses c where c.slug = creator_materials.course_slug and c.published
+      )
+    )
+  );
 drop policy if exists "teachers add creator materials" on creator_materials;
 create policy "teachers add creator materials" on creator_materials
   for insert with check (auth.uid() = creator_id and is_teacher());
 drop policy if exists "teachers change creator materials" on creator_materials;
 create policy "teachers change creator materials" on creator_materials
-  for update using (is_teacher()) with check (is_teacher());
+  for update using (auth.uid() = creator_id and is_teacher())
+  with check (auth.uid() = creator_id and is_teacher());
 drop policy if exists "teachers delete creator materials" on creator_materials;
 create policy "teachers delete creator materials" on creator_materials
-  for delete using (is_teacher());
+  for delete using (auth.uid() = creator_id and is_teacher());
 
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('creator-materials', 'creator-materials', true, 26214400)
-on conflict (id) do update set public = true, file_size_limit = 26214400;
+values ('creator-materials', 'creator-materials', false, 26214400)
+on conflict (id) do update set public = false, file_size_limit = 26214400;
 
 drop policy if exists "public read creator material files" on storage.objects;
-create policy "public read creator material files" on storage.objects
-  for select using (bucket_id = 'creator-materials');
+drop policy if exists "read own or published creator material files" on storage.objects;
+create policy "read own or published creator material files" on storage.objects
+  for select using (
+    bucket_id = 'creator-materials'
+    and exists (
+      select 1 from creator_materials m
+      where m.storage_path = name
+        and (
+          m.creator_id = auth.uid()
+          or (
+            m.published and exists (
+              select 1 from courses c where c.slug = m.course_slug and c.published
+            )
+          )
+        )
+    )
+  );
 drop policy if exists "teachers upload creator material files" on storage.objects;
 create policy "teachers upload creator material files" on storage.objects
-  for insert with check (bucket_id = 'creator-materials' and is_teacher());
+  for insert with check (
+    bucket_id = 'creator-materials' and is_teacher()
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
 drop policy if exists "teachers update creator material files" on storage.objects;
 create policy "teachers update creator material files" on storage.objects
-  for update using (bucket_id = 'creator-materials' and is_teacher())
-  with check (bucket_id = 'creator-materials' and is_teacher());
+  for update using (
+    bucket_id = 'creator-materials' and is_teacher()
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or owner_id = auth.uid()::text
+    )
+  )
+  with check (
+    bucket_id = 'creator-materials' and is_teacher()
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
 drop policy if exists "teachers delete creator material files" on storage.objects;
 create policy "teachers delete creator material files" on storage.objects
-  for delete using (bucket_id = 'creator-materials' and is_teacher());
+  for delete using (
+    bucket_id = 'creator-materials' and is_teacher()
+    and (
+      (storage.foldername(name))[1] = auth.uid()::text
+      or owner_id = auth.uid()::text
+    )
+  );

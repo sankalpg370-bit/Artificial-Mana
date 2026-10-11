@@ -15,7 +15,7 @@ export default function ExcalidrawBoard({ slug, lessonId, user }) {
     setInit(null);
     const apply = (d) => setInit({ elements: (d && d.elements) || [] });
     if (supabase && user) {
-      supabase.from("boards").select("data").eq("course_slug", slug).eq("lesson_id", dbId).maybeSingle()
+      supabase.from("boards").select("data").eq("user_id", user.id).eq("course_slug", slug).eq("lesson_id", dbId).maybeSingle()
         .then(({ data }) => apply(data && data.data));
     } else {
       let d = null;
