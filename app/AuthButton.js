@@ -19,12 +19,15 @@ export default function AuthButton() {
   }, [user]);
   if (!supabase) return null;
   return user ? (
-    <span className="auth">
+    <>
       {teacher && <Link href="/admin" className="btn">Admin</Link>}
-      <span className="muted">{user.email}</span>
+      <span className="muted" style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</span>
       <button onClick={() => supabase.auth.signOut()}>Log out</button>
-    </span>
+    </>
   ) : (
-    <span className="auth"><Link href="/login" className="btn">Log in / Sign up</Link></span>
+    <>
+      <Link href="/login" className="btn">Log in</Link>
+      <Link href="/login" className="btn primary">Sign up free</Link>
+    </>
   );
 }

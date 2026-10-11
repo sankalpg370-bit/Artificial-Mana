@@ -53,4 +53,26 @@ describe("CreatorStudio", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("only available to teacher and admin accounts");
     expect(screen.queryByRole("button", { name: "Save material" })).not.toBeInTheDocument();
   });
+
+  it("loads only materials owned by the signed-in creator", async () => {
+    const fake = makeFake({
+      user: { id: "teacher-1", email: "teacher@example.com" },
+      rows: {
+        profiles: [{ user_id: "teacher-1", role: "teacher" }],
+        courses: [{ slug: "intro", title: "Introduction to AI" }],
+        creator_materials: [
+          { creator_id: "teacher-1", course_slug: "intro", kind: "note", title: "My material", published: false },
+          { creator_id: "teacher-2", course_slug: "intro", kind: "note", title: "Other creator material", published: false },
+        ],
+      },
+    });
+    state.current = fake;
+
+    render(<CreatorStudio />);
+
+    expect(await screen.findByRole("heading", { name: "My material" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Other creator material" })).not.toBeInTheDocument();
+    const query = fake.log.find((entry) => entry.table === "creator_materials" && entry.op === "select");
+    expect(query.filters).toContainEqual(["creator_id", "teacher-1"]);
+  });
 });

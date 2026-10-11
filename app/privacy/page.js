@@ -127,10 +127,14 @@ export default function Privacy() {
       </p>
 
       <p>
-        These records are intended to remain
-        private to your account, subject to
-        authorized service administration
-        and applicable legal requirements.
+        These records are private to your account. Other students and teachers
+        cannot read them. Site administrators can read them. They do this only
+        to give support, to keep the site safe, or when the law requires it.
+      </p>
+
+      <p>
+        We use Vercel Analytics to count visits to pages. We use these counts
+        to learn which pages students read.
       </p>
 
       <h2>5. YouTube Videos</h2>

@@ -335,3 +335,33 @@ create policy "admins manage all creator materials" on creator_materials
 create policy "admins manage all creator material files" on storage.objects
   for all using (bucket_id = 'creator-materials' and is_admin())
   with check (bucket_id = 'creator-materials' and is_admin());
+
+-- ===================== supabase-step14.sql =====================
+-- Limit the declared MIME types and file sizes accepted by storage buckets.
+-- Storage checks the MIME type supplied by the uploader; it does not scan file contents.
+update storage.buckets set
+  allowed_mime_types = array[
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'text/plain',
+    'text/markdown',
+    'application/epub+zip',
+    'application/zip',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif'
+  ],
+  file_size_limit = 26214400
+where id = 'creator-materials';
+
+update storage.buckets set
+  allowed_mime_types = array['application/pdf'],
+  file_size_limit = 26214400
+where id = 'lesson-pdfs';

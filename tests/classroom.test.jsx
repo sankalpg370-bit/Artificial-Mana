@@ -35,6 +35,7 @@ beforeEach(() => {
 });
 
 const endVideo = async () => { await act(async () => { players[0].opts.events.onStateChange({ data: 0 }); }); };
+const readyPlayer = async () => { await act(async () => { players[0].opts.events.onReady({ target: players[0] }); }); };
 const lessonButton = (name) => screen.getByRole("button", { name: new RegExp(name) });
 
 describe("Classroom", () => {
@@ -61,10 +62,19 @@ describe("Classroom", () => {
   });
   it("marks a lesson done when the video ends and plays the next one (Play All)", async () => {
     render(<Classroom course={course} />);
+    await readyPlayer();
     await endVideo();
     expect(JSON.parse(localStorage.getItem("progress:intro"))).toEqual(["l1"]);
     await waitFor(() => expect(lessonButton("Second lesson")).toHaveAttribute("aria-current", "true"));
     expect(screen.getByText(/1 of 3 lessons done/)).toBeInTheDocument();
+    expect(players[0].loaded).toContain("bbbbbbbbbbb");
+  });
+  it("waits for the player to be ready before loading a newly selected lesson", async () => {
+    const u = userEvent.setup();
+    render(<Classroom course={course} />);
+    await u.click(lessonButton("Second lesson"));
+    expect(players[0].loaded).toEqual([]);
+    await readyPlayer();
     expect(players[0].loaded).toContain("bbbbbbbbbbb");
   });
   it("does not move on when Play All is off", async () => {
@@ -85,6 +95,24 @@ describe("Classroom", () => {
     render(<Classroom course={course} />);
     await u.click(lessonButton("Second lesson"));
     await waitFor(() => expect(JSON.parse(localStorage.getItem("state:intro")).last).toBe("l2"));
+  });
+  it("loads course state only for the signed-in student", async () => {
+    const fake = makeFake({
+      user: { id: "student-2" },
+      rows: {
+        course_state: [
+          { user_id: "student-1", course_slug: "intro", bookmarked: false, last_lesson: "l3" },
+          { user_id: "student-2", course_slug: "intro", bookmarked: false, last_lesson: "l2" },
+        ],
+      },
+    });
+    state.current = fake;
+
+    render(<Classroom course={course} />);
+
+    await waitFor(() => expect(lessonButton("Second lesson")).toHaveAttribute("aria-current", "true"));
+    const query = fake.log.find((entry) => entry.table === "course_state");
+    expect(query.filters).toContainEqual(["user_id", "student-2"]);
   });
   it("saves and removes the bookmark", async () => {
     const u = userEvent.setup();

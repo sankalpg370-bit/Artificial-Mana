@@ -43,7 +43,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <main>
 
 <h1>Artificial Mana</h1>
-<p class="muted">Complete project guide. Site: artificialmana.com. Version 12.</p>
+<p class="muted">Complete project guide. Site: artificialmana.com. Version 15.</p>
 
 <nav>
 <strong>Contents</strong>
@@ -249,6 +249,8 @@ svg .s{font-size:13px;fill:var(--muted)}
 <li>Write your own text on the About and Privacy pages. Ask a legal expert to check the Privacy page.</li>
 <li>Run <code>npm audit</code> every month. Update the packages when a fix exists.</li>
 <li>Run <code>npm test</code> before you put a change online. All tests must pass.</li>
+<li>Run <code>npm run test:e2e</code> with a separate test project. It creates test accounts and course data.</li>
+<li>Do not use the live Supabase project for browser tests. Put test passwords in the ignored <code>.env.local</code> file.</li>
 </ul>
 
 <h2 id="opensource">12. Open-source parts</h2>
@@ -261,10 +263,13 @@ svg .s{font-size:13px;fill:var(--muted)}
 <tr><td>Tiptap</td><td>Note editor</td><td>MIT</td></tr>
 <tr><td>pdf-lib</td><td>Certificate PDF</td><td>MIT</td></tr>
 <tr><td>Vitest, Testing Library, jsdom</td><td>Tests (not part of the live site)</td><td>MIT</td></tr>
+<tr><td>Playwright</td><td>Browser tests</td><td>Apache-2.0</td></tr>
+<tr><td>@next/env</td><td>Test settings</td><td>MIT</td></tr>
 </table>
 </div>
 <p>Rule: add only MIT, Apache 2.0, or BSD code. Check the license before you add a library. Add each library to <code>CREDITS.md</code>.</p>
-<p class="muted">The <code>npm audit</code> tool shows 14 warnings inside Excalidraw's own parts. The risk is low. Check for a new Excalidraw version each month.</p>
+<p class="muted">The audit reports 14 issues in Excalidraw and its packages: 6 high, 6 moderate, and 2 low. The suggested fix downgrades Excalidraw. Review updates before changing it.</p>
+<p>Playwright runs browser tests. It uses the Apache-2.0 license. Test it only with a separate Supabase project.</p>
 
 <h2 id="fix">13. Problems and fixes</h2>
 <div class="scroll">
@@ -294,8 +299,7 @@ svg .s{font-size:13px;fill:var(--muted)}
 <li>Certificates with names in other languages</li>
 <li>Paid courses, newsletter, and analytics</li>
 <li>Password reset and "Log in with Google"</li>
-<li>Light theme</li>
-<li>Tests in a real browser (end-to-end tests). The current tests check each part, not a full click-through.</li>
+<li>Full video playback is not part of the browser test. The test simulates the video-ended event.</li>
 </ul>
 
 <h2 id="files">15. Where the files are</h2>

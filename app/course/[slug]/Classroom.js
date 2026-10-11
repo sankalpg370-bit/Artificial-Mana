@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Quiz from "./Quiz";
 import Certificate from "./Certificate";
@@ -19,11 +20,13 @@ export default function Classroom({ course }) {
   const [quizOk, setQuizOk] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [teacher, setTeacher] = useState(false);
+  const [tab, setTab] = useState("notes");
   const [creatorMaterials, setCreatorMaterials] = useState([]);
   const [materialsError, setMaterialsError] = useState("");
   const cs = useRef({ bookmarked: false, last: null });
   const loaded = useRef(false);
   const player = useRef(null);
+  const playerReady = useRef(false);
   const live = useRef({});
   const key = "progress:" + course.slug;
 
@@ -98,12 +101,20 @@ export default function Classroom({ course }) {
   useEffect(() => {
     const videoId = course.lessons[index].youtubeId;
     function create() {
-      if (player.current) { player.current.loadVideoById(videoId); return; }
+      if (player.current) {
+        if (playerReady.current) player.current.loadVideoById(videoId);
+        return;
+      }
       player.current = new window.YT.Player("yt-player", {
         videoId: course.lessons[live.current.index].youtubeId,
         width: "100%", height: "100%",
         host: "https://www.youtube-nocookie.com", // fewer cookies before the student plays
         events: {
+          onReady: (event) => {
+            playerReady.current = true;
+            const activeVideoId = course.lessons[live.current.index].youtubeId;
+            if (activeVideoId !== videoId) event.target.loadVideoById(activeVideoId);
+          },
           onStateChange: (e) => {
             if (e.data !== 0) return; // 0 means the video ended
             const s = live.current;
@@ -268,7 +279,8 @@ export default function Classroom({ course }) {
       loaded.current = true;
     }
     if (supabase && user) {
-      supabase.from("course_state").select("bookmarked,last_lesson").eq("course_slug", course.slug).maybeSingle()
+      supabase.from("course_state").select("bookmarked,last_lesson")
+        .eq("user_id", user.id).eq("course_slug", course.slug).maybeSingle()
         .then(({ data }) => apply({ bookmarked: data && data.bookmarked, last: data && data.last_lesson }));
     } else {
       let st = {};
@@ -317,66 +329,112 @@ export default function Classroom({ course }) {
     player.current.seekTo(sec, true);
     player.current.playVideo();
   }
+  const doneCount = course.lessons.filter((l) => done.includes(l.id)).length;
+  const pct = Math.round((doneCount / course.lessons.length) * 100);
+  const hasMaterials = !!lesson.pdf || visibleMaterials.length > 0 || !!materialsError;
+  const tabs = [
+    ["notes", "Notes"],
+    ...(lesson.quiz ? [["quiz", "Quiz"]] : []),
+    ...(hasMaterials ? [["materials", "Materials"]] : []),
+    ["boards", "Boards"],
+    ["questions", "Questions"],
+  ];
+  const active = tabs.some((t) => t[0] === tab) ? tab : "notes";
+
   return (
-    <div className="classroom">
-      <aside className="side">
-        <label className="toggle">
-          <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} />
-          <span>Play All <small className="muted">(plays the next lesson by itself)</small></span>
-        </label>
-        {course.lessons.map((l, i) => (
-          <button key={l.id} className={"lesson" + (i === index ? " active" : "")} aria-current={i === index ? "true" : undefined} onClick={() => setIndex(i)}>
-            <span className="num">{i + 1}</span>
-            <span className="ltitle">{l.title}</span>
-            <span className={"dot" + (done.includes(l.id) ? " on" : "")}>{done.includes(l.id) ? "✓" : ""}</span>
-          </button>
-        ))}
-      </aside>
-      <section className="stage">
-        <div className="titlebar">
-          <h1>{course.title}</h1>
-          <button className={"bm" + (bookmarked ? " on" : "")} onClick={toggleBookmark}>{bookmarked ? "🔖 Saved" : "🔖 Save course"}</button>
-        </div>
-        <div className="video"><div id="yt-player" /></div>
-        <h2>{index + 1}. {lesson.title}</h2>
-        <p className="muted">{course.lessons.filter((l) => done.includes(l.id)).length} of {course.lessons.length} lessons done{!user && supabase ? " · Log in to save your progress" : ""}</p>
-        <div className="row">
-          <button disabled={index === 0} onClick={() => setIndex(index - 1)}>← Previous</button>
-          <button disabled={index === course.lessons.length - 1} onClick={() => setIndex(index + 1)}>Next →</button>
-        </div>
-        {lesson.pdf && (
-          <div className="materials">
-            <h3>Lesson materials</h3>
-            <div className="row">
-              <a className="btn" href={lesson.pdf} target="_blank" rel="noreferrer">Open full screen</a>
-              <a className="btn" href={lesson.pdf} download>Download PDF</a>
+    <div>
+      <div className="c-head">
+        <div className="container">
+          <nav className="crumbs" aria-label="Breadcrumb"><Link href="/#courses">Courses</Link><span aria-hidden="true">/</span><span>{course.title}</span></nav>
+          <div className="c-title">
+            <div>
+              <h1>{course.title}</h1>
+              {course.description && <p className="muted">{course.description}</p>}
             </div>
-            <iframe className="pdf" src={lesson.pdf} title="Lesson PDF" />
+            <button className={"bm" + (bookmarked ? " on" : "")} onClick={toggleBookmark}>{bookmarked ? "🔖 Saved" : "🔖 Save course"}</button>
           </div>
-        )}
-        {(visibleMaterials.length > 0 || materialsError) && (
-          <div className="materials">
-            <h3>Creator materials</h3>
-            {materialsError && <p className="muted" role="status">{materialsError}</p>}
-            {visibleMaterials.map((material) => (
-              <article className="panel" key={material.id}>
-                <p className="muted">{material.kind[0].toUpperCase() + material.kind.slice(1)}</p>
-                <h4>{material.title}</h4>
-                {material.content && <p className="creator-content">{material.content}</p>}
-                <div className="row">
-                  {material.url && <a className="btn" href={material.url} target="_blank" rel="noopener noreferrer">Open link</a>}
-                  {(material.signed_file_url || material.file_url) && <a className="btn" href={material.signed_file_url || material.file_url} target="_blank" rel="noopener noreferrer">Open file</a>}
-                </div>
-              </article>
+          <div className="progress">
+            <div className="bar" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: pct + "%" }} /></div>
+            <span className="muted">{`${doneCount} of ${course.lessons.length} lessons done`}{!user && supabase ? " · Log in to save your progress" : ""}</span>
+          </div>
+          <Certificate course={course} complete={course.lessons.every((l) => done.includes(l.id))} quizOk={quizOk} />
+        </div>
+      </div>
+      <div className="container c-layout">
+        <section className="c-main">
+          <div className="video"><div id="yt-player" /></div>
+          <div className="player-row">
+            <h2>{index + 1}. {lesson.title}</h2>
+            <div className="row">
+              <button className="alt" disabled={index === 0} onClick={() => setIndex(index - 1)}>← Previous</button>
+              <button disabled={index === course.lessons.length - 1} onClick={() => setIndex(index + 1)}>Next →</button>
+            </div>
+          </div>
+          <div className="tabs" role="tablist" aria-label="Lesson tools">
+            {tabs.map(([id, label]) => (
+              <button key={id} role="tab" aria-selected={active === id} className={"tab" + (active === id ? " on" : "")} onClick={() => setTab(id)}>{label}</button>
             ))}
           </div>
-        )}
-        <Certificate course={course} complete={course.lessons.every((l) => done.includes(l.id))} quizOk={quizOk} />
-        <Whiteboard slug={course.slug} lessonId={lesson.id} user={user} canEdit={teacher} />
-        {lesson.quiz && <Quiz quiz={lesson.quiz} slug={course.slug} lessonId={lesson.id} user={user} onResult={() => setQtick((t) => t + 1)} />}
-        <Notes onExport={exportNotes} notes={notes} onAdd={addNote} onDelete={deleteNote} onSeek={seek} getTime={getTime} loggedIn={!!user} />
-        <Comments slug={course.slug} lessonId={lesson.id} user={user} teacher={teacher} />
-      </section>
+          <div hidden={active !== "notes"}>
+            <Notes onExport={exportNotes} notes={notes} onAdd={addNote} onDelete={deleteNote} onSeek={seek} getTime={getTime} loggedIn={!!user} />
+          </div>
+          {lesson.quiz && (
+            <div hidden={active !== "quiz"}>
+              <Quiz quiz={lesson.quiz} slug={course.slug} lessonId={lesson.id} user={user} onResult={() => setQtick((t) => t + 1)} />
+            </div>
+          )}
+          {hasMaterials && (
+            <div hidden={active !== "materials"}>
+              {lesson.pdf && (
+                <div className="materials">
+                  <h3>Lesson materials</h3>
+                  <div className="row">
+                    <a className="btn" href={lesson.pdf} target="_blank" rel="noreferrer">Open full screen</a>
+                    <a className="btn" href={lesson.pdf} download>Download PDF</a>
+                  </div>
+                  <iframe className="pdf" src={lesson.pdf} title="Lesson PDF" />
+                </div>
+              )}
+              {(visibleMaterials.length > 0 || materialsError) && (
+                <div className="materials">
+                  <h3>Creator materials</h3>
+                  {materialsError && <p className="muted" role="status">{materialsError}</p>}
+                  {visibleMaterials.map((material) => (
+                    <article className="panel" key={material.id}>
+                      <p className="muted">{material.kind[0].toUpperCase() + material.kind.slice(1)}</p>
+                      <h4>{material.title}</h4>
+                      {material.content && <p className="creator-content">{material.content}</p>}
+                      <div className="row">
+                        {material.url && <a className="btn" href={material.url} target="_blank" rel="noopener noreferrer">Open link</a>}
+                        {(material.signed_file_url || material.file_url) && <a className="btn" href={material.signed_file_url || material.file_url} target="_blank" rel="noopener noreferrer">Open file</a>}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div hidden={active !== "boards"}>
+            <Whiteboard slug={course.slug} lessonId={lesson.id} user={user} canEdit={teacher} />
+          </div>
+          <div hidden={active !== "questions"}>
+            <Comments slug={course.slug} lessonId={lesson.id} user={user} teacher={teacher} />
+          </div>
+        </section>
+        <aside className="c-side" aria-label="Lessons">
+          <label className="toggle">
+            <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} />
+            <span>Play All <small className="muted">(plays the next lesson by itself)</small></span>
+          </label>
+          {course.lessons.map((l, i) => (
+            <button key={l.id} className={"lesson" + (i === index ? " active" : "")} aria-current={i === index ? "true" : undefined} onClick={() => setIndex(i)}>
+              <span className="num">{i + 1}</span>
+              <span className="ltitle">{l.title}</span>
+              <span className={"dot" + (done.includes(l.id) ? " on" : "")}>{done.includes(l.id) ? "✓" : ""}</span>
+            </button>
+          ))}
+        </aside>
+      </div>
     </div>
   );
 }

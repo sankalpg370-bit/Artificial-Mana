@@ -12,6 +12,18 @@ const RESOURCE_TYPES = [
   ["other", "Other"],
 ];
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
+// Allowed file types. Web pages (html, svg) and programs are not allowed, for safety.
+const FILE_TYPES = {
+  pdf: "application/pdf", doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv", txt: "text/plain", md: "text/markdown", epub: "application/epub+zip", zip: "application/zip",
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif",
+};
+const fileExt = (name) => (name.split(".").pop() || "").toLowerCase();
 
 function emptyForm() {
   return {
@@ -96,7 +108,8 @@ export default function CreatorStudio() {
       const [courseResult, lessonResult, resourceResult] = await Promise.all([
         supabase.from("courses").select("slug,title").order("created_at"),
         supabase.from("lessons").select("id,course_slug,title").order("position"),
-        supabase.from("creator_materials").select("*").order("created_at"),
+        supabase.from("creator_materials").select("*")
+          .eq("creator_id", user.id).order("created_at"),
       ]);
       const failed = [courseResult, lessonResult, resourceResult].find((result) => result.error);
       if (failed) throw new Error(failed.error.message);
@@ -181,6 +194,11 @@ export default function CreatorStudio() {
       setMessage("Add a link, written content, or a file.");
       return;
     }
+    const expectedContentType = form.file && FILE_TYPES[fileExt(form.file.name)];
+    if (form.file && (!expectedContentType || (form.file.type && form.file.type.toLowerCase() !== expectedContentType))) {
+      setMessage("This file type is not allowed. Use PDF, Word, PowerPoint, Excel, CSV, text, Markdown, EPUB, ZIP, or an image.");
+      return;
+    }
     if (form.file && form.file.size > MAX_FILE_SIZE) {
       setMessage("Files must be 25 MB or smaller.");
       return;
@@ -197,7 +215,7 @@ export default function CreatorStudio() {
         const safeName = form.file.name.replace(/[^\w.-]/g, "_");
         uploadedPath = `${user.id}/${Date.now()}-${safeName}`;
         const upload = await supabase.storage.from("creator-materials").upload(uploadedPath, form.file, {
-          contentType: form.file.type || "application/octet-stream",
+          contentType: FILE_TYPES[fileExt(form.file.name)],
           upsert: false,
         });
         if (upload.error) throw new Error(upload.error.message);
@@ -313,7 +331,7 @@ export default function CreatorStudio() {
           </label>
           <label>
             Attach a file (optional, 25 MB maximum)
-            <input type="file" onChange={(event) => changeForm("file", event.target.files?.[0] || null)} />
+            <input type="file" accept={Object.keys(FILE_TYPES).map((e) => "." + e).join(",")} onChange={(event) => changeForm("file", event.target.files?.[0] || null)} />
           </label>
           {form.file_url && <p className="muted">Current file attached. Choose a replacement or leave empty to keep it.</p>}
           <label className="creator-publish">

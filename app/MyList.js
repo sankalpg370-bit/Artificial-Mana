@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import Cover from "./Cover";
 
 export default function MyList({ courses }) {
   const [user, setUser] = useState(null);
@@ -38,20 +39,24 @@ export default function MyList({ courses }) {
   const mine = courses.filter((c) => states[c.slug] && (states[c.slug].bookmarked || states[c.slug].last));
   if (!mine.length) return null;
   return (
-    <div style={{ marginTop: 32 }}>
-      <h2>My courses</h2>
-      <div className="grid">
+    <section className="section">
+      <h2>Your courses</h2>
+      <div className="course-grid">
         {mine.map((c) => {
           const st = states[c.slug];
           const l = c.lessons.find((x) => x.id === st.last);
           return (
-            <Link key={c.slug} href={`/course/${c.slug}`} className="card">
-              <h2>{st.bookmarked ? "🔖 " : ""}{c.title}</h2>
-              <p className="muted">{l ? `Continue: ${l.title}` : "Saved"}</p>
+            <Link key={c.slug} href={`/course/${c.slug}`} className="course-card">
+              <Cover seed={c.slug} />
+              <div className="cc-body">
+                {st.bookmarked && <span className="pill" style={{ alignSelf: "flex-start" }}>Saved</span>}
+                <h3>{c.title}</h3>
+                <p>{l ? `Continue with: ${l.title}` : "Start this course"}</p>
+              </div>
             </Link>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }

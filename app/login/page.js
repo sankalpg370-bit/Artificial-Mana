@@ -37,7 +37,7 @@ export default function Login() {
   }
 
   return (
-    <div className="wrap" style={{ maxWidth: 420 }}>
+    <div className="auth-card">
       <h1>Welcome</h1>
       <p className="muted">Log in to save your progress on all your devices.</p>
       <div className="form">

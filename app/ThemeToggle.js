@@ -35,7 +35,7 @@ export default function ThemeToggle() {
 
   return (
     <button
-      className="theme-toggle"
+      className="theme-toggle icon-btn"
       type="button"
       onClick={toggleTheme}
       aria-label={`Switch to ${nextTheme} mode`}
