@@ -319,6 +319,7 @@ export default function CreatorStudio() {
   return (
     <div className="wrap creator-studio">
       <h1>Creator Studio</h1>
+      <p><Link href="/admin" className="btn">Manage courses and video lessons</Link></p>
       <p className="muted">Add links, assignments, notes, and files to published courses. Materials marked public are visible to learners.</p>
       {message && <p className="notice" role="status">{message}</p>}
       <section className="panel">

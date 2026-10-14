@@ -19,7 +19,8 @@ for (const width of [320, 390, 768, 1280]) {
     await expect(page.getByText(/No course found/)).toBeVisible();
     await page.getByRole("searchbox").fill("");
     await page.locator(".course-card").first().click();
-    await expect(page.getByRole("tab", { name: "Notes", exact: true })).toBeVisible();
+    // The first course navigation compiles the classroom and drawing dependencies in dev mode.
+    await expect(page.getByRole("tab", { name: "Notes", exact: true })).toBeVisible({ timeout: 30000 });
     await fits(page);
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
     if (width === 390) await page.screenshot({ path: "test-results/classroom-mobile.png", fullPage: true });

@@ -6,6 +6,7 @@ import { backend } from "../lib/backend";
 export default function AuthButton() {
   const [user, setUser] = useState(null);
   const [message, setMessage] = useState("");
+  const [staffAccess, setStaffAccess] = useState(null);
   useEffect(() => {
     if (!backend) return;
     let active = true;
@@ -29,6 +30,17 @@ export default function AuthButton() {
       sub.subscription.unsubscribe();
     };
   }, []);
+  useEffect(() => {
+    if (!backend || !user) return;
+    let active = true;
+    backend.from("profiles").select("role").eq("user_id", user.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (active) setStaffAccess({ userId: user.id, role: error ? null : data?.role });
+      })
+      .catch(() => { if (active) setStaffAccess({ userId: user.id, role: null }); });
+    return () => { active = false; };
+  }, [user]);
+  const isStaff = staffAccess?.userId === user?.id && ["teacher", "admin"].includes(staffAccess?.role);
   if (!backend) return null;
   async function logout() {
     setMessage("");
@@ -42,6 +54,7 @@ export default function AuthButton() {
   }
   return user ? (
     <>
+      {isStaff && <Link href="/admin" className="btn">Manage courses</Link>}
       <span className="muted" style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</span>
       <button type="button" onClick={logout}>Log out</button>
       {message && <span className="muted" role="status" aria-live="polite">{message}</span>}
