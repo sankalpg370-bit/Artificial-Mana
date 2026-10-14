@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { backend } from "../../lib/backend";
 import AdminControlCenter from "./AdminControlCenter";
@@ -146,7 +146,8 @@ export default function Admin() {
 
   return (
     <div className="wrap">
-      <h1>Admin</h1>
+      <h1>Manage courses</h1>
+      <p className="muted">Create and edit courses, add video lessons, PDFs, and quizzes, then publish when ready.</p>
       <p><Link className="btn" href="/creator-studio">Open Creator Studio</Link></p>
       <p><button className="alt" type="button" onClick={lockPortal}>Lock temporary admin access</button></p>
       <p className="muted">Changes show on the public site in about 1 minute.</p>
@@ -180,8 +181,11 @@ export default function Admin() {
 
 function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
   const edit = !!initial;
+  const formId = useId();
+  const [showPreview, setShowPreview] = useState(false);
   const [title, setTitle] = useState(initial ? initial.title : "");
   const [link, setLink] = useState(initial ? initial.youtube_id : "");
+  const videoId = getYouTubeVideoId(link);
   const [file, setFile] = useState(null);
   const [removePdf, setRemovePdf] = useState(false);
   const [quiz, setQuiz] = useState(initial && initial.quiz
@@ -226,8 +230,20 @@ function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
 
   return (
     <div className="form">
-      <input placeholder="Lesson title" value={title} onChange={(e) => setTitle(e.target.value)} />
-      <input placeholder="Paste a YouTube link or video ID" value={link} onChange={(e) => setLink(e.target.value)} />
+      <label htmlFor={`${formId}-title`}>Lesson title</label>
+      <input id={`${formId}-title`} placeholder="Lesson title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <label htmlFor={`${formId}-video`}>YouTube video link</label>
+      <input id={`${formId}-video`} aria-describedby={`${formId}-help`} placeholder="Paste a YouTube link or video ID" value={link} onChange={(e) => { setLink(e.target.value); setShowPreview(false); }} />
+      <p id={`${formId}-help`} className="muted">Paste a YouTube watch, share, Shorts, or live video link. The video plays inside the course. The owner must allow embedding.</p>
+      {link.trim() && !videoId && <p role="alert">Enter a valid YouTube video link or 11-character video ID.</p>}
+      {videoId && <button className="alt" type="button" aria-expanded={showPreview} onClick={() => setShowPreview(!showPreview)}>{showPreview ? "Hide video preview" : "Preview video"}</button>}
+      {showPreview && videoId && <iframe
+        title={`Video preview: ${title.trim() || "New lesson"}`}
+        src={`https://www.youtube-nocookie.com/embed/${videoId}`}
+        style={{ width: "100%", maxWidth: 720, aspectRatio: "16 / 9", border: 0 }}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      />}
       <label className="muted">{edit && initial.pdf_url ? "Replace the PDF file" : "PDF file (optional)"} <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files[0] || null)} /></label>
       {edit && initial.pdf_url && (
         <label className="muted"><input type="checkbox" checked={removePdf} onChange={(e) => setRemovePdf(e.target.checked)} /> Remove the current PDF</label>
@@ -250,7 +266,7 @@ function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
       ))}
       <div className="row">
         <button className="alt" onClick={() => setQuiz([...quiz, emptyQ()])}>Add quiz question</button>
-        <button disabled={busy} onClick={save}>{busy ? "Saving..." : edit ? "Save lesson" : "Add lesson"}</button>
+        <button disabled={busy || !title.trim() || !videoId} onClick={save}>{busy ? "Saving..." : edit ? "Save lesson" : "Add lesson"}</button>
         {onCancel && <button className="alt" onClick={onCancel}>Cancel</button>}
       </div>
     </div>

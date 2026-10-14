@@ -55,6 +55,24 @@ describe("home PC backend permissions and persistence", () => {
     expect(read("notes", manager)).toHaveLength(1);
     expect(() => insert("courses", { slug: "forged-course", title: "Forged" }, learner)).toThrow(/Teacher/);
   });
+  it("lets teachers manage courses and playable lessons without gaining access to private student records", async () => {
+    const staff = { ...await createUser("teacher@example.com", "VerySecurePassword123", "teacher"), role: "teacher" };
+    const learner = await student();
+    insert("courses", { slug: "staff-course", title: "Staff draft" }, staff);
+    const lesson = insert("lessons", { course_slug: "staff-course", title: "First video", youtube_id: "aircAruvnKk" }, staff);
+    expect(read("lessons", null, [["id", lesson.id]])).toEqual([]);
+    executeQuery({ table: "courses", op: "update", filters: [["slug", "staff-course"]], payload: { title: "Staff course", published: true } }, staff);
+    expect(read("lessons", null, [["id", lesson.id]])[0].youtube_id).toBe("aircAruvnKk");
+    insert("notes", { course_slug: "staff-course", lesson_id: lesson.id, content: "Private" }, learner);
+    expect(read("notes", staff)).toEqual([]);
+    expect(() => executeQuery({ table: "lessons", op: "delete", filters: [["id", lesson.id]] }, learner)).toThrow(/Teacher/);
+    executeQuery({ table: "lessons", op: "update", filters: [["id", lesson.id]], payload: { title: "Updated video" } }, staff);
+    expect(read("lessons", null, [["id", lesson.id]])[0].title).toBe("Updated video");
+    executeQuery({ table: "lessons", op: "delete", filters: [["id", lesson.id]] }, staff);
+    expect(read("notes", learner)).toEqual([]);
+    executeQuery({ table: "courses", op: "delete", filters: [["slug", "staff-course"]] }, staff);
+    expect(read("courses", staff, [["slug", "staff-course"]])).toEqual([]);
+  });
   it("upserts board JSON and keeps stored data after reopening the database", async () => {
     const user = await student();
     const query = { table: "boards", op: "upsert", payload: { user_id: user.id, course_slug: "intro-to-ai", lesson_id: "l1", data: { strokes: ["first"] } } };

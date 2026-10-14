@@ -41,10 +41,11 @@ export default function ManagementAccessPage() {
 
   return (
     <main className="auth-card">
-      <h1>Management system</h1>
+      <h1>Staff course management</h1>
       <p className="muted">
-        Enter the temporary management key, then sign in with an account that already has
-        a teacher or admin role. The key alone does not grant access to management data.
+        Add, edit, and delete courses and lessons, paste YouTube video links, reorder lessons,
+        and add PDFs and quizzes. Sign in with a teacher or admin account and enter the
+        management key provided by your administrator.
       </p>
       <form className="form" onSubmit={unlock}>
         <label htmlFor="management-access-key">Temporary access key</label>
