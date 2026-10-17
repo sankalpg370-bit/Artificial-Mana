@@ -25,12 +25,47 @@ beforeAll(async () => {
   for (const id of Object.values(ids)) await db.query('insert into auth.users values($1)', [id]);
   await db.query("update profiles set role='teacher' where user_id=$1", [ids.teacher]);
   await db.query("update profiles set role='admin' where user_id=$1", [ids.admin]);
-  await db.exec(`insert into courses(slug,title,published) values('public-course','Public',true),('draft-course','Draft',false);
-    insert into lessons(id,course_slug,title,youtube_id,quiz) values('public-lesson','public-course','Lesson','aircAruvnKk','[{"q":"Q1","options":["a","b"],"answer":0},{"q":"Q2","options":["a","b"],"answer":0}]'),('draft-lesson','draft-course','Draft','aircAruvnKk',null);`);
+  await db.exec(`insert into courses(slug,title,published) values('public-course','Public',false),('draft-course','Draft',false);
+    insert into lessons(id,course_slug,title,youtube_id,quiz) values('public-lesson','public-course','Lesson','aircAruvnKk','[{"q":"Q1","options":["a","b"],"answer":0},{"q":"Q2","options":["a","b"],"answer":0}]'),('draft-lesson','draft-course','Draft','aircAruvnKk',null);
+    update courses set published=true where slug='public-course';`);
 }, 30000);
 afterAll(async () => { await db?.close(); });
 
 describe('hosted PostgreSQL permissions and integrity', () => {
+  it('blocks empty publication through direct teacher and admin writes, including upserts', async () => {
+    for (const role of ['teacher', 'admin']) {
+      await expect(as('authenticated', ids[role], `insert into courses(slug,title,published) values('${role}-empty','Empty',true)`)).rejects.toThrow(/at least one lesson/);
+      await as('authenticated', ids[role], `insert into courses(slug,title) values('${role}-empty','Empty')`);
+      await expect(as('authenticated', ids[role], `update courses set published=true where slug='${role}-empty'`)).rejects.toThrow(/at least one lesson/);
+      await expect(as('authenticated', ids[role], `insert into courses(slug,title,published) values('${role}-empty','Empty',true) on conflict(slug) do update set published=excluded.published`)).rejects.toThrow(/at least one lesson/);
+      expect((await as('authenticated', ids[role], `select published from courses where slug='${role}-empty'`)).rows).toEqual([{ published: false }]);
+      await as('authenticated', ids[role], `delete from courses where slug='${role}-empty'`);
+    }
+  });
+  it('keeps a course published until its last lesson is removed, then returns it to draft', async () => {
+    await as('authenticated', ids.teacher, "insert into courses(slug,title) values('publication-flow','Publication flow')");
+    await as('authenticated', ids.teacher, "insert into lessons(id,course_slug,title,youtube_id) values('publication-1','publication-flow','First','aircAruvnKk'),('publication-2','publication-flow','Second','aircAruvnKk')");
+    await as('authenticated', ids.teacher, "update courses set published=true where slug='publication-flow'");
+    await as('authenticated', ids.teacher, "delete from lessons where id='publication-1'");
+    expect((await as('anon', '', "select slug from courses where slug='publication-flow'")).rows).toHaveLength(1);
+    await as('authenticated', ids.teacher, "delete from lessons where id='publication-2'");
+    expect((await as('anon', '', "select slug from courses where slug='publication-flow'")).rows).toHaveLength(0);
+    expect((await as('authenticated', ids.teacher, "select published from courses where slug='publication-flow'")).rows).toEqual([{ published: false }]);
+    await as('authenticated', ids.teacher, "insert into lessons(id,course_slug,title,youtube_id) values('publication-3','publication-flow','Replacement','aircAruvnKk')");
+    expect((await as('authenticated', ids.teacher, "select published from courses where slug='publication-flow'")).rows).toEqual([{ published: false }]);
+    await as('authenticated', ids.teacher, "update courses set published=true where slug='publication-flow'");
+    await as('authenticated', ids.teacher, "delete from courses where slug='publication-flow'");
+  });
+  it('repairs existing empty publications safely and can apply the forward update again', async () => {
+    await db.exec("drop trigger mana_course_publication on courses; insert into courses(slug,title,published) values('legacy-empty','Preserve my title',true)");
+    const forward = readFileSync(new URL('../database/hosted-course-publication.sql', import.meta.url), 'utf8');
+    await db.exec(forward);
+    await db.exec(forward);
+    expect((await db.query("select title,published from courses where slug='legacy-empty'")).rows).toEqual([{ title: 'Preserve my title', published: false }]);
+    expect((await db.query("select published from courses where slug='public-course'")).rows).toEqual([{ published: true }]);
+    await expect(as('authenticated', ids.teacher, "update courses set published=true where slug='legacy-empty'")).rejects.toThrow(/at least one lesson/);
+    await db.exec("delete from courses where slug='legacy-empty'");
+  });
   it('seeds new users as students and blocks self-promotion', async () => {
     const rows = await as('authenticated', ids.student, 'select role from profiles');
     expect(rows.rows).toEqual([{ role: 'student' }]);
@@ -85,5 +120,14 @@ describe('hosted PostgreSQL permissions and integrity', () => {
     expect((await as('authenticated', ids.student, 'select * from notes')).rows).toHaveLength(0);
     expect((await as('authenticated', ids.student, 'select * from boards')).rows).toHaveLength(0);
     await expect(as('authenticated', ids.student, "insert into notes(course_slug,lesson_id,content) values('public-course','public-lesson','Late')")).rejects.toThrow(/lesson/);
+  });
+  it('seeds a complete sample and preserves an existing decision to keep it in draft', async () => {
+    const seed = readFileSync(new URL('../database/hosted-seed.sql', import.meta.url), 'utf8');
+    await db.exec(seed);
+    expect((await db.query("select published from courses where slug='intro-to-ai'")).rows).toEqual([{ published: true }]);
+    expect((await db.query("select id from lessons where course_slug='intro-to-ai'")).rows).toHaveLength(3);
+    await db.exec("update courses set published=false where slug='intro-to-ai'");
+    await db.exec(seed);
+    expect((await db.query("select published from courses where slug='intro-to-ai'")).rows).toEqual([{ published: false }]);
   });
 });

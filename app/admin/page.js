@@ -106,6 +106,10 @@ export default function Admin() {
   }
   async function togglePublish(c) {
     try {
+      if (!c.published && !lessons.some((lesson) => lesson.course_slug === c.slug)) {
+        setMsg("Add at least one lesson before publishing this course.");
+        return;
+      }
       const { error } = await backend.from("courses").update({ published: !c.published }).eq("slug", c.slug);
       if (error) setMsg(error.message); else reload();
     } catch (error) {
@@ -274,6 +278,7 @@ function LessonForm({ course, lessons, initial, onDone, setMsg, onCancel }) {
 }
 
 function CourseEditor({ course, lessons, onPublish, onDelete, reload, setMsg }) {
+  const publicationHintId = useId();
   const [editLesson, setEditLesson] = useState(null);
   const [ed, setEd] = useState(false);
   const [d, setD] = useState({ title: course.title, description: course.description || "", category: course.category || "" });
@@ -292,9 +297,14 @@ function CourseEditor({ course, lessons, onPublish, onDelete, reload, setMsg }) 
   }
   async function removeLesson(l) {
     try {
-      if (!window.confirm(`Delete the lesson "${l.title}"?`)) return;
+      const returnsToDraft = course.published && lessons.length === 1;
+      if (!window.confirm(`Delete the lesson "${l.title}"?${returnsToDraft ? " This is the last lesson, so the course will return to draft." : ""}`)) return;
       const { error } = await backend.from("lessons").delete().eq("id", l.id);
-      if (error) setMsg(error.message); else reload();
+      if (error) setMsg(error.message);
+      else {
+        setMsg(returnsToDraft ? "Lesson deleted. The empty course is now a draft." : "Lesson deleted.");
+        reload();
+      }
     } catch (error) {
       console.error("Admin action failed.", error);
       setMsg("Could not complete this action. Check your connection and try again.");
@@ -325,10 +335,12 @@ function CourseEditor({ course, lessons, onPublish, onDelete, reload, setMsg }) 
         <h2 style={{ margin: 0 }}>{course.title} <span className="muted">({course.published ? "Published" : "Draft"})</span></h2>
         <div className="wb-bar">
           <button className="tb" onClick={() => setEd(!ed)}>{ed ? "Close" : "Edit details"}</button>
-          <button className="tb on" onClick={onPublish}>{course.published ? "Unpublish" : "Publish"}</button>
+          <button className="tb on" onClick={onPublish} disabled={!course.published && lessons.length === 0}
+            aria-describedby={!course.published && lessons.length === 0 ? publicationHintId : undefined}>{course.published ? "Unpublish" : "Publish"}</button>
           <button className="tb" onClick={onDelete}>Delete course</button>
         </div>
       </div>
+      {!course.published && lessons.length === 0 && <p className="muted" id={publicationHintId}>Add at least one lesson before publishing this course.</p>}
       {ed && (
         <div className="form" style={{ marginBottom: 16 }}>
           <input placeholder="Title" value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} />

@@ -55,6 +55,25 @@ describe("home PC backend permissions and persistence", () => {
     expect(read("notes", manager)).toHaveLength(1);
     expect(() => insert("courses", { slug: "forged-course", title: "Forged" }, learner)).toThrow(/Teacher/);
   });
+  it("rejects direct empty publication requests and drafts a course when its last lesson is deleted", async () => {
+    const manager = await admin();
+    expect(() => insert("courses", { slug: "empty", title: "Empty", published: true }, manager)).toThrow(/at least one lesson/);
+    const course = insert("courses", { slug: "empty", title: "Empty" }, manager);
+    expect(course.published).toBe(false);
+    const publish = { table: "courses", op: "update", filters: [["slug", "empty"]], payload: { published: true } };
+    expect(() => executeQuery(publish, manager)).toThrow(/at least one lesson/);
+    expect(() => executeQuery({ table: "courses", op: "upsert", payload: { slug: "empty", title: "Empty", published: true } }, manager)).toThrow(/at least one lesson/);
+    const first = insert("lessons", { course_slug: "empty", title: "First", youtube_id: "aircAruvnKk" }, manager);
+    const second = insert("lessons", { course_slug: "empty", title: "Second", youtube_id: "aircAruvnKk" }, manager);
+    executeQuery(publish, manager);
+    executeQuery({ table: "lessons", op: "delete", filters: [["id", first.id]] }, manager);
+    expect(read("courses", null, [["slug", "empty"]])).toHaveLength(1);
+    executeQuery({ table: "lessons", op: "delete", filters: [["id", second.id]] }, manager);
+    expect(read("courses", manager, [["slug", "empty"]])[0].published).toBe(false);
+    expect(read("courses", null, [["slug", "empty"]])).toHaveLength(0);
+    insert("lessons", { course_slug: "empty", title: "Replacement", youtube_id: "aircAruvnKk" }, manager);
+    expect(read("courses", manager, [["slug", "empty"]])[0].published).toBe(false);
+  });
   it("lets teachers manage courses and playable lessons without gaining access to private student records", async () => {
     const staff = { ...await createUser("teacher@example.com", "VerySecurePassword123", "teacher"), role: "teacher" };
     const learner = await student();
@@ -121,7 +140,9 @@ describe("home PC backend permissions and persistence", () => {
     executeQuery({ table: "courses", op: "delete", filters: [["slug", linked.course_slug]] }, manager);
     for (const table of ["progress", "notes", "quiz_results", "boards", "lesson_boards", "course_state", "comments", "lessons"]) expect(read(table, manager)).toEqual([]);
     expect(() => insert("notes", { ...linked, content: "Late save" }, user)).toThrow(/no longer exists/);
-    insert("courses", { slug: linked.course_slug, title: "Replacement course", published: true }, manager);
+    insert("courses", { slug: linked.course_slug, title: "Replacement course" }, manager);
+    insert("lessons", { course_slug: linked.course_slug, title: "New lesson", youtube_id: "aircAruvnKk" }, manager);
+    executeQuery({ table: "courses", op: "update", filters: [["slug", linked.course_slug]], payload: { published: true } }, manager);
     expect(read("comments", user)).toEqual([]);
   });
   it("deletes lesson data including diagrams and clears resume position without losing bookmarks", async () => {

@@ -18,6 +18,26 @@ afterEach(() => {
 });
 
 describe("Admin access", () => {
+  it("explains why an empty draft cannot be published and enables publishing after adding a lesson", async () => {
+    state.current = makeFake({
+      user: { id: "teacher-1" },
+      rows: {
+        profiles: [{ user_id: "teacher-1", role: "teacher" }],
+        courses: [{ slug: "empty-course", title: "Empty course", published: false }],
+      },
+    });
+    render(<Admin />);
+    const publish = await screen.findByRole("button", { name: "Publish", exact: true });
+    expect(publish).toBeDisabled();
+    expect(publish).toHaveAccessibleDescription("Add at least one lesson before publishing this course.");
+    fireEvent.change(screen.getByLabelText("Lesson title"), { target: { value: "First lesson" } });
+    fireEvent.change(screen.getByLabelText("YouTube video link"), { target: { value: "aircAruvnKk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add lesson", exact: true }));
+    await screen.findByText("Lesson added.");
+    fireEvent.click(await screen.findByRole("button", { name: "Publish", exact: true }));
+    expect(await screen.findByRole("button", { name: "Unpublish", exact: true })).toBeEnabled();
+    expect(state.current.db.courses[0].published).toBe(true);
+  });
   it("does not show creator controls to a regular user", async () => {
     state.current = makeFake({
       user: { id: "student-1" },

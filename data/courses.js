@@ -8,7 +8,7 @@ export const courses = [
   {
     slug: "intro-to-ai",
     title: "Introduction to Artificial Intelligence",
-    description: "Start here. Learn the main ideas of modern AI.",
+    description: "Sample course for testing the learning tools. Includes demonstration videos, quizzes, and a sample PDF.",
     category: "Basics",
     lessons: [
       { id: "l1", title: "What is Artificial Intelligence?", youtubeId: "aircAruvnKk", pdf: "/pdfs/sample.pdf",

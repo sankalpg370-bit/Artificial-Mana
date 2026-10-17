@@ -1,7 +1,7 @@
 import CreatorStudio from "./studio";
 
 export const metadata = {
-  title: "Creator Studio | Artificial Mana",
+  title: "Creator Studio",
   robots: { index: false, follow: false },
 };
 

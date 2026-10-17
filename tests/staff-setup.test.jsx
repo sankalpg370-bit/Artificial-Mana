@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 async function login() {
   fireEvent.change(screen.getByLabelText('Staff email'), { target: { value: user.email } });
-  fireEvent.change(screen.getByLabelText('Temporary password'), { target: { value: 'test-temporary-value' } });
+  fireEvent.change(screen.getByLabelText('Current or temporary password'), { target: { value: 'test-temporary-value' } });
   fireEvent.click(screen.getByRole('button', { name: 'Continue to set your password' }));
 }
 function fillPasswords() {

@@ -52,7 +52,7 @@ export default function Login() {
       <h1 id="login-title">Welcome</h1>
       <p className="muted">{publicSignupEnabled() ? "Log in to save your progress on all your devices." : "Sign in with an existing staff account. Everyone can learn without signing in."}</p>
       <p><Link href="/#courses">Continue learning without an account</Link></p>
-      {!publicSignupEnabled() && <p><Link href="/staff/setup">Set up your staff account or change your password</Link></p>}
+      {!publicSignupEnabled() && <p><Link href="/staff/setup">Set or change your staff password</Link></p>}
       <form className="form" onSubmit={(event) => { event.preventDefault(); go("login"); }}>
         <label htmlFor="login-email">Email</label>
         <input id="login-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

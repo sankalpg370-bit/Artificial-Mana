@@ -17,7 +17,7 @@ export default function StaffSetup() {
   const available = backend && backendMode() === "supabase";
 
   async function verifyStaff(user) {
-    if (!user?.id) throw new Error("Sign in with your temporary password first.");
+    if (!user?.id) throw new Error("Sign in with your current or temporary password first.");
     const { data, error } = await backend.from("profiles").select("role").eq("user_id", user.id).single();
     if (error) throw new Error("Could not verify staff access. Please try again.");
     if (!["teacher", "admin"].includes(data?.role)) throw new Error("This account has not been granted staff access. Contact the site owner.");
@@ -62,8 +62,8 @@ export default function StaffSetup() {
 
   return (
     <section className="auth-card" aria-labelledby="staff-setup-title">
-      <h1 id="staff-setup-title">Staff account setup</h1>
-      <p className="muted">Staff accounts are created privately by the site owner. Public registration is closed.</p>
+      <h1 id="staff-setup-title">Set your staff password</h1>
+      <p className="muted">Use this page to change the password for an existing staff account. Need an account? Contact the site owner to create one privately.</p>
       {!available ? <p role="status">Staff setup is available on the hosted website.</p> : done ? (
         <>
           <p role="status">Your new password has been saved. Sign in using your new password.</p>
@@ -71,10 +71,10 @@ export default function StaffSetup() {
         </>
       ) : !staff ? (
         <form className="form" onSubmit={signIn}>
-          <h2>1. Sign in with your temporary password</h2>
+          <h2>1. Sign in to your staff account</h2>
           <label htmlFor="staff-email">Staff email</label>
           <input id="staff-email" type="email" autoComplete="username" required disabled={busy} value={email} onChange={e => setEmail(e.target.value)} />
-          <label htmlFor="staff-temporary-password">Temporary password</label>
+          <label htmlFor="staff-temporary-password">Current or temporary password</label>
           <input id="staff-temporary-password" type="password" autoComplete="current-password" required disabled={busy} value={temporaryPassword} onChange={e => setTemporaryPassword(e.target.value)} />
           <button disabled={busy}>{busy ? "Checking account..." : "Continue to set your password"}</button>
         </form>

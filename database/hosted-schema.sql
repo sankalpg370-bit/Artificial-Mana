@@ -167,6 +167,34 @@ begin
 end;
 $$;
 create trigger mana_cleanup after delete on lessons for each row execute function cleanup_lesson();
+create function mana_private.validate_course_publication()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  if new.published and not exists(select 1 from public.lessons where course_slug=new.slug) then
+    raise exception 'Add at least one lesson before publishing this course.' using errcode='23514';
+  end if;
+  return new;
+end;
+$$;
+
+create function mana_private.draft_empty_course()
+returns trigger language plpgsql security invoker set search_path = '' as $$
+begin
+  -- Serialize lesson removals against publishing and other removals in this course.
+  -- Once the lock is acquired, the next statement sees the latest committed lessons.
+  perform 1 from public.courses where slug=old.course_slug for update;
+  update public.courses set published=false where slug=old.course_slug and published
+    and not exists(select 1 from public.lessons where course_slug=old.course_slug and id<>old.id);
+  return old;
+end;
+$$;
+
+revoke execute on function mana_private.validate_course_publication(),mana_private.draft_empty_course() from public,anon,authenticated;
+create trigger mana_course_publication before insert or update on public.courses
+  for each row execute function mana_private.validate_course_publication();
+create trigger mana_draft_empty_course before delete on public.lessons
+  for each row execute function mana_private.draft_empty_course();
+
 -- RLS is the authority for browser SDK requests; frontend role checks only control presentation.
 do $$ declare t text; begin
   foreach t in array array['profiles','courses','lessons','progress','notes','course_state','quiz_results','boards','lesson_boards','comments','creator_materials'] loop

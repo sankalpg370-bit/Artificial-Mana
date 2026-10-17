@@ -22,6 +22,7 @@ test("public navigation, page titles, missing courses, and management gate work"
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "not correct" })).toBeVisible();
   await page.goto("/creator-studio");
+  await expect(page).toHaveTitle("Creator Studio | Artificial Mana");
   await expect(page.getByText("You must sign in with a creator account to access this page.")).toBeVisible();
   expect(errors).toEqual([]);
 });
