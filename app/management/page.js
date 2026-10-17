@@ -41,7 +41,7 @@ export default function ManagementAccessPage() {
 
   return (
     <main className="auth-card">
-      <h1>Management system</h1>
+      <h1>Staff course management</h1>
       <p className="muted">
         Add, edit, and delete courses and lessons, paste YouTube video links, reorder lessons,
         and add PDFs and quizzes. Sign in with a teacher or admin account and enter the
@@ -63,6 +63,6 @@ export default function ManagementAccessPage() {
       <p className="muted">
         <Link href="/login?next=%2Fadmin">Sign in to your account</Link>
       </p>
-    </section>
+    </main>
   );
 }
