@@ -32,7 +32,7 @@ describe("Admin access", () => {
     expect(screen.queryByText("Full site control")).not.toBeInTheDocument();
   });
 
-  it("keeps management access out of regular site navigation", async () => {
+  it("shows course management navigation to teacher accounts", async () => {
     state.current = makeFake({
       user: { id: "teacher-1", email: "teacher@example.com" },
       rows: { profiles: [{ user_id: "teacher-1", role: "teacher" }] },
@@ -42,7 +42,40 @@ describe("Admin access", () => {
 
     expect(await screen.findByText("teacher@example.com")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Management system" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Manage courses" })).toHaveAttribute("href", "/admin");
+  });
+
+  it.each(["student", null])("hides course management navigation for role %s", async (role) => {
+    state.current = makeFake({
+      user: { id: "student-1", email: "student@example.com" },
+      rows: { profiles: role ? [{ user_id: "student-1", role }] : [] },
+    });
+    render(<AuthButton />);
+    expect(await screen.findByText("student@example.com")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Manage courses" })).not.toBeInTheDocument();
+  });
+
+  it("previews a pasted video and clears the preview when the link changes", async () => {
+    state.current = makeFake({
+      user: { id: "teacher-1" },
+      rows: {
+        profiles: [{ user_id: "teacher-1", role: "teacher" }],
+        courses: [{ slug: "test-course", title: "Test course", published: false }],
+      },
+    });
+    render(<Admin />);
+    const video = await screen.findByLabelText("YouTube video link");
+    const save = screen.getByRole("button", { name: "Add lesson", exact: true });
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Lesson title"), { target: { value: "Test lesson" } });
+    fireEvent.change(video, { target: { value: "https://youtu.be/aircAruvnKk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview video" }));
+    expect(screen.getByTitle("Video preview: Test lesson")).toHaveAttribute("src", "https://www.youtube-nocookie.com/embed/aircAruvnKk");
+    expect(save).toBeEnabled();
+    fireEvent.change(video, { target: { value: "https://example.com/video" } });
+    expect(screen.queryByTitle("Video preview: Test lesson")).not.toBeInTheDocument();
+    expect(save).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid YouTube");
   });
 
   it("shows a helpful message when sign-out fails", async () => {

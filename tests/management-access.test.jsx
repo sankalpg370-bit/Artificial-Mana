@@ -20,7 +20,7 @@ describe("management access", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(await screen.findByRole("heading", { name: "Management system" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Staff course management" })).toBeInTheDocument();
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/admin"));
     expect(fetchMock).toHaveBeenCalledWith("/api/admin-access", expect.objectContaining({
       method: "POST",

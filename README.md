@@ -32,7 +32,8 @@ The first database initialization seeds the sample courses once. Later changes t
 
 ## Content and account management
 
-- **Courses:** Create courses and lessons in Admin, add YouTube IDs or links, optional PDFs and quizzes, then publish. Public course pages refresh through the existing cache, usually after about a minute.
+- **Staff access:** An administrator assigns trusted accounts the `teacher` role in **Full site control → Users & roles**. Teachers and admins see **Manage courses** in the header and enter the existing management key when asked. Student accounts cannot edit teaching content.
+- **Courses:** Create courses and lessons in Admin, add YouTube IDs or links, optional PDFs and quizzes, then publish. Use **Preview video** to check that a pasted YouTube link allows playback inside the site before saving. Public course pages refresh through the existing cache, usually after about a minute.
 - **Creator Studio:** Teacher/admin accounts can add links, assignments, notes, and files. Learners see materials marked visible on published courses. Uploads support allowed document, archive, text, and image formats up to 25 MiB. HTML/SVG are excluded; file validation does not scan content for malware.
 - **Learning:** Signed-in students save notes, progress, bookmarks, quiz results, and private boards to the local server. Teacher-board viewers receive updates by polling roughly every 1.5 seconds while the page is visible. Certificates require all lessons complete and every quiz at least 60%; the PDF currently supports English letters.
 - **Access:** Students cannot read another student's private records. Teachers manage teaching content and comments. Administrators can inspect and manage all records and account roles in **Full site control**. Public registration creates student accounts only.
