@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { publicSignupEnabled } from "../../../lib/backend-config";
 import { backend } from "../../../lib/backend";
 
 const when = (d) => new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -108,7 +109,7 @@ export default function Comments({ slug, lessonId, user, teacher }) {
           </div>
         </div>
       ) : (
-        <p className="muted"><Link href="/login" style={{ textDecoration: "underline" }}>Log in</Link> to ask a question or write a comment.</p>
+        <p className="muted">{publicSignupEnabled() ? <><Link href="/login" style={{ textDecoration: "underline" }}>Log in</Link> to ask a question or write a comment.</> : "Everyone can read comments. Posting is available to existing accounts."}</p>
       )}
       {loading && <p role="status">Loading comments...</p>}
       {msg && <p className="notice" role="alert">{msg} <button type="button" onClick={load}>Retry loading</button></p>}
@@ -118,7 +119,7 @@ export default function Comments({ slug, lessonId, user, teacher }) {
           {list.filter((r) => r.parent_id === c.id).map((r) => <div key={r.id}>{item(r, true)}</div>)}
         </div>
       ))}
-      {!loading && !msg && !top.length && <p className="muted">No comments yet. Be the first.</p>}
+      {!loading && !msg && !top.length && <p className="muted">No comments yet.{(user || publicSignupEnabled()) && " Be the first."}</p>}
     </div>
   );
 }

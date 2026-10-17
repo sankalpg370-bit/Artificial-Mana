@@ -7,34 +7,40 @@ import Comments from "./Comments";
 import Whiteboard from "./Whiteboard";
 import Notes, { fmt } from "./Notes";
 import { safeHtml } from "../../../lib/richtext";
+import { publicSignupEnabled } from "../../../lib/backend-config";
 import { backend } from "../../../lib/backend";
 
 export default function Classroom({ course }) {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(!backend);
+  const [authError, setAuthError] = useState("");
+  const [authAttempt, setAuthAttempt] = useState(0);
   useEffect(() => {
     if (!backend) return;
+    setAuthError("");
     let active = true;
     let authChanged = false;
     backend.auth.getSession().then(({ data, error }) => {
       if (!active || authChanged) return;
-      if (error) console.error("Unable to check the current session.", error);
+      if (error) throw error;
       setUser(data?.session?.user ?? null);
       setAuthReady(true);
     }).catch((error) => {
       if (!active || authChanged) return;
       console.error("Unable to check the current session.", error);
-      setAuthReady(true);
+      setAuthError("Your sign-in status could not be checked. Try again to load your classroom.");
     });
     const { data: sub } = backend.auth.onAuthStateChange((_e, sess) => {
       authChanged = true;
       if (!active) return;
       setUser(sess?.user ?? null);
+      setAuthError("");
       setAuthReady(true);
     });
     return () => { active = false; sub.subscription.unsubscribe(); };
-  }, []);
+  }, [authAttempt]);
 
+  if (authError) return <div className="wrap" role="alert">{authError} <button type="button" onClick={() => setAuthAttempt((attempt) => attempt + 1)}>Try again</button></div>;
   if (!authReady) return <div className="wrap" role="status">Loading your classroom...</div>;
   // Remount account-owned state on account/course changes so old requests cannot leak into a new session.
   return <ClassroomContent key={`${course.slug}:${user?.id || "guest"}`} course={course} user={user} />;
@@ -56,6 +62,8 @@ function ClassroomContent({ course, user }) {
   const [saveError, setSaveError] = useState("");
   const [videoError, setVideoError] = useState("");
   const cs = useRef({ bookmarked: false, last: null });
+  const localDone = useRef([]);
+  const stateWrites = useRef(Promise.resolve());
   const player = useRef(null);
   const playerHost = useRef(null);
   const playerReady = useRef(false);
@@ -64,7 +72,7 @@ function ClassroomContent({ course, user }) {
 
   useEffect(() => {
     if (!backend || !user) {
-      try { const saved = JSON.parse(localStorage.getItem(key)); setDone(Array.isArray(saved) ? saved : []); } catch (error) {
+      try { const saved = JSON.parse(localStorage.getItem(key)); localDone.current = Array.isArray(saved) ? saved : []; setDone(localDone.current); } catch (error) {
         console.error("Unable to load local lesson progress.", error);
         setDone([]);
       }
@@ -77,7 +85,7 @@ function ClassroomContent({ course, user }) {
         if (!active) return;
         if (error) {
           console.error("Unable to load account lesson progress.", error);
-          setDone([]);
+          setSaveError("Your lesson progress could not be loaded. Refresh to retry.");
           return;
         }
         setDone((current) => [...new Set([...current, ...(data || []).map((row) => row.lesson_id)])]);
@@ -85,7 +93,7 @@ function ClassroomContent({ course, user }) {
       .catch((error) => {
         if (!active) return;
         console.error("Unable to load account lesson progress.", error);
-        setDone([]);
+        setSaveError("Your lesson progress could not be loaded. Refresh to retry.");
       });
     return () => { active = false; };
   }, [key, user, course.slug]);
@@ -96,20 +104,21 @@ function ClassroomContent({ course, user }) {
         { user_id: user.id, course_slug: course.slug, lesson_id: id },
         { onConflict: "user_id,course_slug,lesson_id" }
       ).then(({ error }) => {
-        if (error) { console.error("Unable to save account lesson progress.", error); setSaveError("Lesson progress could not be saved. Replay the lesson to retry."); }
+        if (error) throw error;
+        setDone((current) => current.includes(id) ? current : [...current, id]);
       }).catch(() => setSaveError("Lesson progress could not be saved. Replay the lesson to retry."));
+      return;
     }
-    setDone((d) => {
-      if (d.includes(id)) return d;
-      const n = [...d, id];
-      if (!backend || !user) {
-        try { localStorage.setItem(key, JSON.stringify(n)); } catch (error) {
-          console.error("Unable to save local lesson progress.", error);
-          setSaveError("Your browser could not save lesson progress. Check your storage settings.");
-        }
-      }
-      return n;
-    });
+    if (localDone.current.includes(id)) return;
+    const next = [...localDone.current, id];
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+      localDone.current = next;
+      setDone(next);
+    } catch (error) {
+      console.error("Unable to save local lesson progress.", error);
+      setSaveError("Your browser could not save lesson progress. Check your storage settings.");
+    }
   }
   live.current = { index, autoplay, markDone };
 
@@ -291,7 +300,7 @@ function ClassroomContent({ course, user }) {
   useEffect(() => {
     let active = true;
     const need = course.lessons.filter((l) => l.quiz?.length);
-    const pass = (r) => !!r && r.total > 0 && r.score / r.total >= 0.6;
+    const pass = (r, lesson) => !!r && r.total === lesson.quiz.length && r.score <= r.total && r.score / r.total >= 0.6;
     if (!need.length) { setQuizOk(true); return; }
     if (backend && user) {
       setQuizOk(false);
@@ -300,11 +309,11 @@ function ClassroomContent({ course, user }) {
         if (error) throw error;
         const m = {};
         (data || []).forEach((r) => { m[r.lesson_id] = r; });
-        setQuizOk(need.every((l) => pass(m[l.id])));
+        setQuizOk(need.every((l) => pass(m[l.id], l)));
       }).catch(() => { if (active) setQuizOk(false); });
     } else {
       setQuizOk(need.every((l) => {
-        try { return pass(JSON.parse(localStorage.getItem(`quiz:${course.slug}:${l.id}`))); } catch (e) { return false; }
+        try { return pass(JSON.parse(localStorage.getItem(`quiz:${course.slug}:${l.id}`)), l); } catch (e) { return false; }
       }));
     }
     return () => { active = false; };
@@ -314,10 +323,11 @@ function ClassroomContent({ course, user }) {
     cs.current = { ...cs.current, ...patch };
     const st = cs.current;
     if (backend && user) {
-      backend.from("course_state").upsert(
+      // Preserve the order of rapid lesson/bookmark changes even on a slow connection.
+      stateWrites.current = stateWrites.current.then(() => backend.from("course_state").upsert(
         { user_id: user.id, course_slug: course.slug, bookmarked: st.bookmarked, last_lesson: st.last },
         { onConflict: "user_id,course_slug" }
-      ).then(({ error }) => { if (error) throw error; }).catch(() => setSaveError("Your course bookmark or last lesson could not be saved. Try again."));
+      )).then(({ error }) => { if (error) throw error; }).catch(() => setSaveError("Your course bookmark or last lesson could not be saved. Try again."));
     } else {
       try { localStorage.setItem("state:" + course.slug, JSON.stringify(st)); } catch { setSaveError("Your browser could not save this course. Check your storage settings."); }
     }
@@ -365,33 +375,38 @@ function ClassroomContent({ course, user }) {
   }
 
   async function exportNotes() {
-    const all = {};
-    if (backend && user) {
-      const { data, error } = await backend.from("notes").select("lesson_id,seconds,content")
-        .eq("user_id", user.id).eq("course_slug", course.slug).order("seconds");
-      if (error) {
-        console.error("Unable to export your saved notes.", error);
-        alert("Your notes could not be loaded for export. Please try again.");
-        return;
-      }
-      (data || []).forEach((n) => { (all[n.lesson_id] = all[n.lesson_id] || []).push(n); });
-    } else {
-      course.lessons.forEach((l) => {
-        try { all[l.id] = JSON.parse(localStorage.getItem(`notes:${course.slug}:${l.id}`)) || []; } catch (e) {}
-      });
-    }
-    const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-    let body = course.lessons.map((l, i) => {
-      const ns = all[l.id] || [];
-      if (!ns.length) return "";
-      return `<h2>${i + 1}. ${esc(l.title)}</h2>` + ns.map((n) => `<div class="n"><b>${fmt(n.seconds)}</b>${safeHtml(n.content)}</div>`).join("");
-    }).join("");
-    if (!body) body = "<p>No notes yet.</p>";
+    // Open while the click still has user activation; account reads may take seconds.
     const w = window.open("", "_blank");
-    if (!w) { alert("Allow pop-ups for this site. Then try again."); return; }
-    w.document.write(`<html><head><title>${esc(course.title)} - My Notes</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;line-height:1.5}h1{border-bottom:2px solid #333}h2{margin-top:28px}.n{margin:14px 0}.n p{margin:4px 0}blockquote{border-left:3px solid #999;margin:6px 0;padding-left:10px}code,pre{background:#eee;padding:2px 4px}</style></head><body><h1>${esc(course.title)} - My Notes</h1>${body}</body></html>`);
-    w.document.close(); w.focus();
-    setTimeout(() => w.print(), 400); // The student chooses "Save as PDF" in the print window
+    if (!w) throw new Error("Allow pop-ups for this site, then try again.");
+    try {
+      const all = {};
+      if (backend && user) {
+        const { data, error } = await backend.from("notes").select("lesson_id,seconds,content")
+          .eq("user_id", user.id).eq("course_slug", course.slug).order("seconds");
+        if (error) {
+          console.error("Unable to export your saved notes.", error);
+          throw new Error("Your notes could not be loaded for export. Please try again.");
+        }
+        (data || []).forEach((n) => { (all[n.lesson_id] = all[n.lesson_id] || []).push(n); });
+      } else {
+        course.lessons.forEach((l) => {
+          try { all[l.id] = JSON.parse(localStorage.getItem(`notes:${course.slug}:${l.id}`)) || []; } catch (e) {}
+        });
+      }
+      const esc = (t) => t.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+      let body = course.lessons.map((l, i) => {
+        const ns = all[l.id] || [];
+        if (!ns.length) return "";
+        return `<h2>${i + 1}. ${esc(l.title)}</h2>` + ns.map((n) => `<div class="n"><b>${fmt(n.seconds)}</b>${safeHtml(n.content)}</div>`).join("");
+      }).join("");
+      if (!body) body = "<p>No notes yet.</p>";
+      w.document.write(`<html><head><title>${esc(course.title)} - My Notes</title><style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;line-height:1.5}h1{border-bottom:2px solid #333}h2{margin-top:28px}.n{margin:14px 0}.n p{margin:4px 0}blockquote{border-left:3px solid #999;margin:6px 0;padding-left:10px}code,pre{background:#eee;padding:2px 4px}</style></head><body><h1>${esc(course.title)} - My Notes</h1>${body}</body></html>`);
+      w.document.close(); w.focus();
+      setTimeout(() => w.print(), 400); // The student chooses "Save as PDF" in the print window
+    } catch (error) {
+      w.close();
+      throw error;
+    }
   }
   function seek(sec) {
     if (!player.current || !player.current.seekTo) return;
@@ -424,7 +439,7 @@ function ClassroomContent({ course, user }) {
           </div>
           <div className="progress">
             <div className="bar" role="progressbar" aria-label="Course progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: pct + "%" }} /></div>
-            <span className="muted">{`${doneCount} of ${course.lessons.length} lessons done`}{!user && backend ? " · Log in to save your progress" : ""}</span>
+            <span className="muted">{`${doneCount} of ${course.lessons.length} lessons done`}{!user && backend ? (publicSignupEnabled() ? " · Log in to save your progress" : " · Progress saved in this browser") : ""}</span>
           </div>
           {saveError && <p role="alert">{saveError}</p>}
           <Certificate course={course} complete={course.lessons.every((l) => done.includes(l.id))} quizOk={quizOk} />

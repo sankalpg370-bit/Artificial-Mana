@@ -1,6 +1,6 @@
 
 export const metadata = {
-  title: "About | Artificial Mana",
+  title: "About",
   description:
     "Discover Artificial Mana, a learning platform making artificial intelligence simple, practical, and accessible to everyone.",
 };

@@ -17,7 +17,7 @@ module.exports = defineConfig({
     command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,
-    env: { NEXT_PUBLIC_LOCAL_ONLY: "1", ADMIN_TEMP_ACCESS_KEY: "" },
+    env: { NEXT_PUBLIC_BACKEND: "local", NEXT_PUBLIC_LOCAL_ONLY: "1", ADMIN_TEMP_ACCESS_KEY: "" },
     timeout: 120000,
   },
 });

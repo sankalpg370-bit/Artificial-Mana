@@ -1,4 +1,5 @@
 "use client";
+import { publicSignupEnabled } from "../../../lib/backend-config";
 import { useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { extensions, safeHtml } from "../../../lib/richtext";
@@ -77,7 +78,7 @@ export default function Notes({ notes, onAdd, onDelete, onSeek, getTime, loggedI
         <button disabled={busy} onClick={submit}>{busy ? "Working..." : `Save note at ${fmt(t)}`}</button>
         <button disabled={busy} className="alt" onClick={() => run(onExport, "Could not export your notes. Please try again.")}>Download notes as PDF</button>
       </div>
-      {!loggedIn && <p className="muted">Your notes stay in this browser. Log in to keep them on all your devices.</p>}
+      {!loggedIn && <p className="muted">Your notes stay in this browser.{publicSignupEnabled() ? " Log in to keep them on all your devices." : " Download a PDF to keep a copy."}</p>}
       {message && <p role="alert">{message}</p>}
       {notes.map((n) => (
         <div key={n.id} className="note">

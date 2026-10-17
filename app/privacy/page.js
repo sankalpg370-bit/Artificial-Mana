@@ -1,11 +1,13 @@
+import { backendMode } from "../../lib/backend-config";
+
 export const metadata = {
-  title: "Privacy Policy | Artificial Mana",
+  title: "Privacy Policy",
   description:
     "Learn how Artificial Mana collects, uses, stores, and protects your personal information.",
 };
 
 export default function Privacy() {
-  const lastUpdated = "October 11, 2026";
+  const lastUpdated = "October 14, 2026";
 
   return (
     <div className="wrap prose">
@@ -89,9 +91,9 @@ export default function Privacy() {
       <h2>3. Data Storage and Security</h2>
 
       <p>
-        Account records, learning data, and uploaded files are stored on the
-        site operator&apos;s own server. Access to account data is checked by
-        the application before it is returned to a browser.
+        {backendMode() === "supabase"
+          ? "Account records, learning data, and uploaded files are stored with Supabase. The website is hosted on Vercel. Database and file access policies restrict which records each account can read or change."
+          : "Account records, learning data, and uploaded files are stored on the site operator’s own server. Access to account data is checked by the application before it is returned to a browser."}
       </p>
 
       <p>
@@ -115,9 +117,10 @@ export default function Privacy() {
       <h2>4. Your Notes and Learning Data</h2>
 
       <p>
-        Your notes, bookmarks, quiz scores,
-        and lesson progress are associated
-        with your account.
+        Without signing in, your notes, bookmarks, quiz scores, drawings,
+        and lesson progress are saved in this browser. Clearing browser data
+        removes them. They do not sync between devices. If you sign in with
+        an existing account, your learning records are associated with that account.
       </p>
 
       <p>

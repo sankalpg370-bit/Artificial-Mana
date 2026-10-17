@@ -8,7 +8,7 @@ vi.mock("../lib/backend", async () => {
   return { get backend() { return state.current; } };
 });
 // The notes editor and the boards have their own tests. Here we test the lesson page logic.
-vi.mock("../app/course/[slug]/Notes", () => ({ default: ({ notes }) => <div data-testid="loaded-notes">{notes.map((note) => <span key={note.id}>{note.content}</span>)}</div>, fmt: (s) => String(s) }));
+vi.mock("../app/course/[slug]/Notes", () => ({ default: ({ notes, onExport }) => <div data-testid="loaded-notes">{notes.map((note) => <span key={note.id}>{note.content}</span>)}<button onClick={() => onExport().catch(() => {})}>Export notes</button></div>, fmt: (s) => String(s) }));
 vi.mock("../app/course/[slug]/Whiteboard", () => ({ default: () => null }));
 import Classroom from "../app/course/[slug]/Classroom";
 
@@ -167,6 +167,122 @@ it("reports unavailable YouTube videos", async () => {
   render(<Classroom course={course} />);
   await act(async () => players[0].opts.events.onError({ data: 100 }));
   expect(screen.getByRole("alert")).toHaveTextContent("This video is unavailable");
+});
+
+it("does not award a certificate for a partial quiz result", async () => {
+  const withQuiz = { ...course, lessons: [{ ...course.lessons[0], quiz: [
+    { q: "First?", options: ["a", "b"], answer: 0 },
+    { q: "Second?", options: ["a", "b"], answer: 0 },
+  ] }] };
+  localStorage.setItem("progress:intro", JSON.stringify(["l1"]));
+  localStorage.setItem("quiz:intro:l1", JSON.stringify({ score: 1, total: 1 }));
+  render(<Classroom course={withQuiz} />);
+  expect(await screen.findByText(/Finish all lessons and pass every quiz/)).toBeInTheDocument();
+  expect(screen.queryByText(/You finished this course/)).not.toBeInTheDocument();
+});
+
+it("does not show completed lessons when account persistence fails", async () => {
+  const fake = makeFake({ user: { id: "u1" } });
+  const original = fake.from;
+  fake.from = (table) => {
+    const query = original(table);
+    if (table === "progress") query.upsert = () => Promise.resolve({ error: { message: "Offline" } });
+    return query;
+  };
+  state.current = fake;
+  render(<Classroom course={course} />);
+  await waitFor(() => expect(players).toHaveLength(1));
+  await endVideo();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Lesson progress could not be saved");
+  expect(screen.getByText(/0 of 3 lessons done/)).toBeInTheDocument();
+});
+
+it("does not show completed lessons when browser storage fails", async () => {
+  render(<Classroom course={course} />);
+  const original = Storage.prototype.setItem;
+  const saved = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (key, value) {
+    if (key.startsWith("progress:")) throw new Error("Storage full");
+    return original.call(this, key, value);
+  });
+  try {
+    await endVideo();
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not save lesson progress");
+    expect(screen.getByText(/0 of 3 lessons done/)).toBeInTheDocument();
+  } finally { saved.mockRestore(); }
+});
+
+it("retries a failed session check before offering browser-only learning", async () => {
+  const fake = makeFake({ user: { id: "u1" } });
+  fake.auth.getSession = vi.fn()
+    .mockResolvedValueOnce({ data: null, error: { message: "Offline" } })
+    .mockResolvedValue({ data: { session: { user: { id: "u1" } } } });
+  state.current = fake;
+  render(<Classroom course={course} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("sign-in status could not be checked");
+  expect(screen.queryByRole("tab", { name: "Notes" })).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByRole("tab", { name: "Notes" })).toBeInTheDocument();
+  expect(fake.auth.getSession).toHaveBeenCalledTimes(2);
+});
+
+it("saves rapid bookmark changes in order despite a delayed earlier write", async () => {
+  const fake = makeFake({ user: { id: "u1" } });
+  const original = fake.from;
+  let release;
+  let writes = 0;
+  fake.from = (table) => {
+    const query = original(table);
+    if (table !== "course_state") return query;
+    const upsert = query.upsert;
+    query.upsert = (...args) => {
+      writes++;
+      const write = upsert(...args);
+      if (writes === 1) return new Promise((resolve) => {
+        release = () => write.then(resolve);
+      });
+      return write;
+    };
+    return query;
+  };
+  state.current = fake;
+  render(<Classroom course={course} />);
+  await waitFor(() => expect(release).toBeTypeOf("function"));
+  const u = userEvent.setup();
+  await u.click(screen.getByRole("button", { name: /Save course/ }));
+  await u.click(screen.getByRole("button", { name: /Saved/ }));
+  expect(writes).toBe(1);
+  await act(async () => release());
+  await waitFor(() => expect(writes).toBe(3));
+  expect(fake.db.course_state).toEqual([expect.objectContaining({ bookmarked: false, last_lesson: "l1" })]);
+});
+
+it("opens the notes print window before fetching and closes it on export failure", async () => {
+  const fake = makeFake({ user: { id: "u1" } });
+  const original = fake.from;
+  let fail;
+  fake.from = (table) => {
+    const query = original(table);
+    if (table !== "notes") return query;
+    let fields;
+    query.select = (columns) => { fields = columns; return query; };
+    const then = query.then;
+    query.then = (resolve, reject) => fields === "lesson_id,seconds,content"
+      ? new Promise((finish) => { fail = () => finish({ error: { message: "Offline" } }); }).then(resolve, reject)
+      : then(resolve, reject);
+    return query;
+  };
+  state.current = fake;
+  const popup = { close: vi.fn() };
+  const open = vi.spyOn(window, "open").mockReturnValue(popup);
+  try {
+    render(<Classroom course={course} />);
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Export notes" }));
+    expect(open).toHaveBeenCalledWith("", "_blank");
+    expect(fail).toBeTypeOf("function");
+    expect(popup.close).not.toHaveBeenCalled();
+    await act(async () => fail());
+    expect(popup.close).toHaveBeenCalledOnce();
+  } finally { open.mockRestore(); }
 });
 
 

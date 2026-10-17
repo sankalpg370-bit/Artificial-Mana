@@ -1,3 +1,4 @@
+import { requireLocalBackend } from "../../../lib/backend-config";
 import { credentials, createUser, hashPassword, passwordMatches, issueSession, sessionUser, revokeSession, sessionCookie, rateLimit } from "../../../lib/server/auth.mjs";
 import { database } from "../../../lib/server/database.mjs";
 import { HttpError, json, failure, readJson, requireSameOrigin } from "../../../lib/server/http.mjs";
@@ -5,12 +6,14 @@ export const runtime = "nodejs";
 
 export async function GET(request) {
   try {
+    requireLocalBackend();
     const user = sessionUser(request);
     return json({ data: { session: user ? { user: { id: user.id, email: user.email } } : null }, error: null });
   } catch (error) { return failure(error); }
 }
 export async function POST(request) {
   try {
+    requireLocalBackend();
     requireSameOrigin(request);
     const body = await readJson(request, 16384);
     if (body.action === "logout") {

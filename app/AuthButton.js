@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { publicSignupEnabled } from "../lib/backend-config";
 import { backend } from "../lib/backend";
 
 export default function AuthButton() {
@@ -49,8 +50,8 @@ export default function AuthButton() {
   ) : (
     <>
       {message && <span className="muted" role="status" aria-live="polite">{message}</span>}
-      <Link href="/login" className="btn">Log in</Link>
-      <Link href="/login" className="btn primary">Sign up free</Link>
+      <Link href="/login" className="btn">{publicSignupEnabled() ? "Log in" : "Staff login"}</Link>
+      {publicSignupEnabled() && <Link href="/login" className="btn primary">Sign up free</Link>}
     </>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import MyList from "./MyList";
 import CourseBrowser from "./CourseBrowser";
 import HeroBoard from "./HeroBoard";
+import { publicSignupEnabled } from "../lib/backend-config";
 import { getCourses } from "../lib/courses";
 
 export const revalidate = 60; // The page updates up to 1 minute after you change a course.
@@ -18,6 +19,7 @@ const FEATURES = [
 ];
 
 export default async function Home() {
+  const signup = publicSignupEnabled();
   const courses = await getCourses();
   const lessons = courses.reduce((n, c) => n + c.lessons.length, 0);
   return (
@@ -26,10 +28,10 @@ export default async function Home() {
         <div className="hero-in">
           <div>
             <h1>Learn artificial intelligence, one lesson at a time</h1>
-            <p className="lead">Watch short video lessons. Write notes at any moment, draw on the board, and test yourself with quizzes. It is free.</p>
+            <p className="lead">Watch short video lessons. Write notes at any moment, draw on the board, and test yourself with quizzes. It is free. No account is needed.</p>
             <div className="hero-actions">
               <a className="btn primary lg" href="#courses">Browse courses</a>
-              <Link className="btn lg" href="/login">Sign up free</Link>
+              {signup && <Link className="btn lg" href="/login">Sign up free</Link>}
             </div>
             <p className="hero-facts">{courses.length} {courses.length === 1 ? "course" : "courses"}, {lessons} {lessons === 1 ? "lesson" : "lessons"}, and a certificate when you finish.</p>
           </div>
@@ -53,9 +55,9 @@ export default async function Home() {
         <div className="cta-in">
           <div>
             <h2>Make your first note today</h2>
-            <p>Create a free account to keep your progress, notes, and boards on every device.</p>
+            <p>{signup ? "Create a free account to keep your progress, notes, and boards on every device." : "Start a lesson without signing up. Your notes, progress, and drawings stay in this browser."}</p>
           </div>
-          <Link className="btn lg" href="/login">Sign up free</Link>
+          <Link className="btn lg" href={signup ? "/login" : "#courses"}>{signup ? "Sign up free" : "Start learning"}</Link>
         </div>
       </section>
     </>

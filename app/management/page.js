@@ -40,8 +40,8 @@ export default function ManagementAccessPage() {
   }
 
   return (
-    <main className="auth-card">
-      <h1>Management system</h1>
+    <section className="auth-card" aria-labelledby="management-title">
+      <h1 id="management-title">Management system</h1>
       <p className="muted">
         Enter the temporary management key, then sign in with an account that already has
         a teacher or admin role. The key alone does not grant access to management data.
@@ -62,6 +62,6 @@ export default function ManagementAccessPage() {
       <p className="muted">
         <Link href="/login?next=%2Fadmin">Sign in to your account</Link>
       </p>
-    </main>
+    </section>
   );
 }

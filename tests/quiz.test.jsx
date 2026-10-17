@@ -48,6 +48,11 @@ describe("Quiz", () => {
     render(<Quiz quiz={extendedQuiz} slug="c" lessonId="l1" user={null} />);
 
     expect(screen.getAllByRole("radio")).toHaveLength(20);
+    for (const radio of screen.getAllByRole("radio").filter((_, index) => index % 2 === 0)) {
+      await u.click(radio);
+    }
+    expect(screen.getByRole("button", { name: "Check answers" })).toBeDisabled();
+    expect(localStorage.getItem("quiz:c:l1")).toBeNull();
     await u.click(screen.getByRole("button", { name: "Show 2 more questions" }));
     expect(screen.getAllByRole("radio")).toHaveLength(24);
 
@@ -58,6 +63,15 @@ describe("Quiz", () => {
 
     expect(screen.getByText("You got 12 of 12.")).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("quiz:c:l1"))).toEqual({ score: 12, total: 12 });
+  });
+  it("replaces a legacy partial score with a complete attempt", async () => {
+    localStorage.setItem("quiz:c:l1", JSON.stringify({ score: 1, total: 1 }));
+    render(<Quiz quiz={quiz} slug="c" lessonId="l1" user={null} />);
+    const u = userEvent.setup();
+    await u.click(screen.getAllByLabelText("right")[0]);
+    await u.click(screen.getAllByLabelText("wrong")[1]);
+    await u.click(screen.getByRole("button", { name: "Check answers" }));
+    expect(JSON.parse(localStorage.getItem("quiz:c:l1"))).toEqual({ score: 1, total: 2 });
   });
   it("saves to the account when the student is logged in", async () => {
     const u = userEvent.setup();

@@ -52,11 +52,12 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
   }, [key, user, slug, lessonId]);
 
   async function check() {
-    const s = visibleQuiz.filter((q, i) => pick[i] === q.answer).length;
-    const result = { score: s, total: visibleQuiz.length };
+    if (saving || !quiz.length || !quiz.every((q, i) => pick[i] !== undefined)) return;
+    const s = quiz.filter((q, i) => pick[i] === q.answer).length;
+    const result = { score: s, total: quiz.length };
     setScore(s);
     setMessage("");
-    const isBetter = !best
+    const isBetter = !best || best.total !== quiz.length
       || s * best.total > best.score * result.total
       || (s * best.total === best.score * result.total && result.total > best.total);
     if (!isBetter) {
@@ -105,7 +106,7 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
     }
   }
 
-  const all = visibleQuiz.every((q, i) => pick[i] !== undefined);
+  const all = quiz.length > 0 && quiz.every((q, i) => pick[i] !== undefined);
   return (
     <div className="quiz">
       <h3>Quick quiz</h3>
@@ -143,6 +144,7 @@ export default function Quiz({ quiz, slug, lessonId, user, onResult }) {
           </button>
         </div>
       )}
+      {visibleCount < quiz.length && <p className="muted">Show and answer all {quiz.length} questions before checking your answers.</p>}
       {score === null ? (
         <div className="row"><button disabled={!all || saving} onClick={check}>Check answers</button></div>
       ) : (

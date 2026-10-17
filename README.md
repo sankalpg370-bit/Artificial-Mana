@@ -2,7 +2,7 @@
 
 Artificial Mana is a Next.js learning website with video lessons, saved progress, rich notes, quizzes, certificates, drawing boards, teacher boards, comments, and a creator/admin workspace.
 
-The app now runs its backend on your own computer: a local SQLite database stores accounts and learning records, and local folders store uploaded files. Supabase is no longer a dependency. The intended public deployment is a Windows PC running the application, reached through a Cloudflare Tunnel. See [the Windows deployment guide](DEPLOYMENT.md) for the complete setup.
+The public deployment uses **Vercel + Supabase**: Supabase provides hosted accounts, PostgreSQL with row-level permissions, and persistent file storage. See [the hosted deployment guide](VERCEL_DEPLOYMENT.md). Set `NEXT_PUBLIC_BACKEND=supabase` before building. Local SQLite and local uploads remain available with `NEXT_PUBLIC_BACKEND=local` for development or a persistent home server; see [the Windows guide](DEPLOYMENT.md). Vercel refuses to use the local database.
 
 ## Start locally on Windows
 
@@ -39,7 +39,7 @@ The first database initialization seeds the sample courses once. Later changes t
 - **Password recovery:** Run `npm.cmd run account:reset` on the server and enter the user's email and new password after verifying their identity. This invalidates their existing sessions. Email verification, SMTP, and emailed password-reset links are not implemented; registration email is an unverified account identifier.
 - **Registration:** Set `DISABLE_SIGNUP=1` and restart to close new registrations while retaining existing account login.
 
-Existing Supabase accounts, password hashes, files, and learning records have **not** been imported. Preserve any old exports separately; users need new local accounts unless a separate data migration is implemented. The old `supabase-all.sql`, `database-steps/`, and Supabase setup materials are historical and are not used by this server.
+Local and hosted accounts are separate. Existing SQLite accounts, password hashes, files, and learning records are **not** automatically imported into Supabase. Preserve exports separately. For a fresh hosted application schema use `database/hosted-schema.sql` and the optional `database/hosted-seed.sql`; the older `supabase-all.sql` and `database-steps/` are historical and must not be combined with the new schema.
 
 ## Verify changes
 
@@ -58,6 +58,6 @@ The migration passed 104 unit tests, 2 complete browser tests, 7 smoke tests, li
 
 Follow [DEPLOYMENT.md](DEPLOYMENT.md) for HTTPS domain routing, Windows sign-in startup, backups, restoration, and upgrades. The application, SQLite database, and uploads live on the PC; the tunnel forwards visitor traffic. Keep the PC powered, awake, connected, and signed in after reboot for the supplied startup configuration.
 
-Use one running application instance with this local database. This configuration requires persistent local disk and is not a Vercel/Netlify serverless deployment. The Windows installation and public tunnel must still be set up and verified on the actual host.
+The home-server instructions apply to local mode only and require persistent disk. Use the hosted guide for Vercel; do not deploy SQLite or local uploads there.
 
 The default theme is dark; the header switch remembers the user's choice. Colors live in `app/globals.css`. Excalidraw and other attribution are listed in [CREDITS.md](CREDITS.md). Keep `.env.local`, database files, uploads, logs, and backups out of Git.

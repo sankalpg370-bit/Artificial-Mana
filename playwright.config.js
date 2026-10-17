@@ -18,6 +18,6 @@ module.exports = defineConfig({
   webServer: {
     command: "npm run dev -- --hostname 127.0.0.1 --port 3200",
     url: "http://127.0.0.1:3200", reuseExistingServer: false, timeout: 120000,
-    env: { DATA_DIR: directory, APP_ORIGIN: "http://127.0.0.1:3200", NEXT_PUBLIC_LOCAL_ONLY: "0", ADMIN_TEMP_ACCESS_KEY: "local-e2e-portal-key-not-for-production" },
+    env: { DATA_DIR: directory, APP_ORIGIN: "http://127.0.0.1:3200", NEXT_PUBLIC_BACKEND: "local", NEXT_PUBLIC_LOCAL_ONLY: "0", ADMIN_TEMP_ACCESS_KEY: "local-e2e-portal-key-not-for-production" },
   },
 });

@@ -1,7 +1,9 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { backend } from "../../lib/backend";
+import { backendMode, publicSignupEnabled } from "../../lib/backend-config";
 
 export default function Login() {
   const router = useRouter();
@@ -11,6 +13,7 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
 
   async function go(mode) {
+    if (mode === "signup" && !publicSignupEnabled()) { setMsg("Public registration is closed. You can learn without an account."); return; }
     if (!backend) { setMsg("Sign-in is temporarily unavailable. You can still browse courses and save learning progress in this browser."); return; }
     const cleanEmail = email.trim();
     if (!cleanEmail || !password) {
@@ -26,7 +29,10 @@ export default function Login() {
       const fn = mode === "signup" ? backend.auth.signUp : backend.auth.signInWithPassword;
       const { data, error } = await fn.call(backend.auth, { email: cleanEmail, password });
       if (error) { setMsg(error.message); return; }
-      if (mode === "signup" && !data.session) { setMsg("Your account was created. Please log in."); return; }
+      if (mode === "signup" && !data.session) {
+        setMsg(backendMode() === "supabase" ? "Check your email for a confirmation link, then log in. If you already have an account, try logging in." : "Your account was created. Please log in.");
+        return;
+      }
       const next = new URLSearchParams(window.location.search).get("next");
       const requested = new URL(next || "/", window.location.origin);
       const destination = requested.origin === window.location.origin
@@ -44,7 +50,9 @@ export default function Login() {
   return (
     <section className="auth-card" aria-labelledby="login-title">
       <h1 id="login-title">Welcome</h1>
-      <p className="muted">Log in to save your progress on all your devices.</p>
+      <p className="muted">{publicSignupEnabled() ? "Log in to save your progress on all your devices." : "Sign in with an existing staff account. Everyone can learn without signing in."}</p>
+      <p><Link href="/#courses">Continue learning without an account</Link></p>
+      {!publicSignupEnabled() && <p><Link href="/staff/setup">Set up your staff account or change your password</Link></p>}
       <form className="form" onSubmit={(event) => { event.preventDefault(); go("login"); }}>
         <label htmlFor="login-email">Email</label>
         <input id="login-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -52,7 +60,7 @@ export default function Login() {
         <input id="login-password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         <div className="row">
           <button type="submit" disabled={busy}>Log in</button>
-          <button type="button" disabled={busy} onClick={() => go("signup")}>Sign up</button>
+          {publicSignupEnabled() && <button type="button" disabled={busy} onClick={() => go("signup")}>Sign up</button>}
         </div>
         {msg && <p className="notice" role="status" aria-live="polite">{msg}</p>}
       </form>
